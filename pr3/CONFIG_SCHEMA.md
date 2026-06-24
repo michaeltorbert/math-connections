@@ -30,7 +30,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFamilies` | string[] | family strings | `[]` | Families to show **more** often (weight ×3). Bad entries dropped. |
 | `avoidFamilies` | string[] | family strings | `[]` | Families to **exclude**. If this empties the pool, the app falls back to the full in-range set and warns. |
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
-| `problemTypeMix` | object | weights ≥ 0 | `{PICTURE_FAMILY:.67, COMPANION:.17, NOT_FAMILY:.16}` | Relative likelihood of each problem type. **Auto-normalized** to sum 1, so you may pass plain weights like `{PICTURE_FAMILY:4, COMPANION:1, NOT_FAMILY:1}`. |
+| `problemTypeMix` | object | weights ≥ 0 | `{PICTURE_FAMILY:.4, ADD_TO_SUB:.2, COMPANION:.2, NOT_FAMILY:.2}` | Relative likelihood of concrete problem types. The default scheduler also adds a sixth spaced-review slot. **Auto-normalized** to sum 1, so you may pass plain weights like `{PICTURE_FAMILY:2, ADD_TO_SUB:1, COMPANION:1, NOT_FAMILY:1}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
 | `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Offer the "Show the connection" animation after a correct ADD. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
@@ -54,6 +54,18 @@ and shows a non-blocking message — it never crashes or hangs.
 - `CONNECT` — use a small circle picture to write an addition and a matching subtraction.
   Use this to build add→subtract transfer without turning the task into a number-bond diagram.
 
+The local default six-screen scheduler is ordered, not random:
+
+1. `PICTURE_FAMILY`
+2. `PICTURE_FAMILY`
+3. `ADD_TO_SUB`
+4. `COMPANION`
+5. `NOT_FAMILY`
+6. `SPACED_REVIEW` (internal slot that resolves to the weakest recent skill or miss)
+
+When an imported `problemTypeMix` uses the default ratios, the app keeps this conceptual
+sequence. Custom mixes are still arranged in a stable instructional order rather than shuffled.
+
 ## Examples
 
 ### Minimal — bump the level, shorten sessions
@@ -73,7 +85,7 @@ and shows a non-blocking message — it never crashes or hangs.
   "emphasizeFamilies": ["6+4=10", "7+3=10", "8+2=10"],
   "emphasizeFacts": ["10-6", "10-7", "10-8"],
   "avoidFamilies": [],
-  "problemTypeMix": { "PICTURE_FAMILY": 4, "COMPANION": 1, "NOT_FAMILY": 1 },
+  "problemTypeMix": { "PICTURE_FAMILY": 2, "ADD_TO_SUB": 1, "COMPANION": 1, "NOT_FAMILY": 1 },
   "hintBehavior": { "autoHintAfterWrong": 1, "alwaysOfferMorph": true },
   "mastery": { "streakToMaster": 3, "demoteOnMiss": true },
   "ttsRate": 0.92
@@ -89,6 +101,13 @@ and shows a non-blocking message — it never crashes or hangs.
   "meta": { "app", "appVersion", "schemaVersion", "child", "exportedAt", "totalProblems", "dateRange" },
   "activeConfig": { /* the config currently in effect */ },
   "factMastery": { "8-3": { "box": 2, "streak": 0, "attempts": 5, "correct": 2, "lastSeen": 0 }, ... },
+  "deficitProfile": {
+    "focus": { /* local focus buckets and reasons */ },
+    "factStats": { /* per-fact first-try ratios */ },
+    "familyStats": { /* addition vs subtraction transfer ratios by family */ },
+    "skillStats": { /* per-skill first-try ratios */ },
+    "representationStats": { /* picture vs equation first-try ratios */ }
+  },
   "sessions": [ { "id", "startedAt", "endedAt", "length", "summary": { "total", "firstTry" } }, ... ],
   "problems": [ /* one record per problem, schema below */ ]
 }
@@ -101,11 +120,14 @@ Each **problem record**:
   "id", "timestamp", "sessionId", "schemaVersion",
   "mode": "factFamily",
   "problemType": "COMPANION",       // PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT
+  "plannedType": "SPACED_REVIEW",   // original session slot before review/focus resolution; often same as problemType
   "factFamilyId": "3+5=8",
   "operands": { "a": 3, "b": 5, "whole": 8 },
   "fact": "8-3",
   "factCanonical": "8-3=5",
   "operation": "structure",         // structure | count | addition | subtraction
+  "skill": "wholeFirst",
+  "representation": "equation",
   "problemText": "Make the matching subtraction. The whole stays first. The parts switch places.",
   "correctAnswer": 5,
   "childAnswer": 1,
@@ -114,6 +136,8 @@ Each **problem record**:
   "correctFirstTry": false,
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
+  "hintSequence": ["conceptualFeedback", "addedScaffold"],
+  "modeledAnswer": false,
   "morphViewed": false,
   "answers": [
     {
@@ -121,6 +145,8 @@ Each **problem record**:
       "fact": "8-3",
       "operation": "structure",
       "role": "whole",
+      "skill": "wholeFirst",
+      "representation": "equation",
       "correctAnswer": 8,
       "childAnswer": 5,
       "finalAnswer": 8,
@@ -190,3 +216,9 @@ candidate after the picture-to-equation work.
 `operation:"count"` reveals whether the colored parts and whole were counted, `operation:"addition"`
 reveals picture-to-symbol addition mapping, and `operation:"subtraction"` reveals whether the
 child started from the whole and found the other part.
+
+Each answer row can also include `skill` and `representation`. Current skills include
+`countFirstGroup`, `countSecondGroup`, `identifyWhole`, `pictureToAddition`,
+`pictureToSubtraction`, `wholeFirst`, `additionToSubtraction`, `companionSubtraction`,
+`familyDiscrimination`, `additionRecall`, `subtractionRecall`, and `subtractionToAddition`.
+Representations currently include `picture` and `equation`.

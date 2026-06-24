@@ -9,7 +9,8 @@ Static browser app for James's addition/subtraction fact-family practice. The
 current product target is not generic arithmetic drilling; it is helping James
 turn a colored part-whole picture into the related addition and subtraction
 equations. Symbolic whole-first companion-subtraction work remains secondary
-reinforcement.
+reinforcement. Sessions should feel like a sequenced tutor moving through one
+relationship, not a random worksheet.
 
 There is no build step and no bundler. Keep the app runnable as plain static
 files.
@@ -174,6 +175,22 @@ When refreshing a preview:
   - distinguished true-but-wrong-family equations such as `7 - 2 = 5` for the
     family `2, 7, 9`
   - logged `PART_MINUS_PART` separately from ordinary arithmetic mistakes
+- Keep the default local scheduler ordered and representationally coherent:
+  picture family, picture family, addition-to-subtraction, companion
+  subtraction, family discrimination, then spaced review. Do not replace this
+  with shuffled practice unless the user explicitly asks for randomization.
+- Thread non-review items through one anchor fact family where possible so the
+  child sees the same part/whole relationship across picture, addition,
+  subtraction, and family-discrimination representations.
+- Log skill and representation metadata at answer-row level. Current skill
+  buckets include counting each group, identifying the whole,
+  picture-to-addition, picture-to-subtraction, whole-first structure,
+  addition-to-subtraction, companion subtraction, family discrimination,
+  addition recall, subtraction recall, and subtraction-to-addition.
+- Keep autonomous correction local and low-pressure: first wrong answer gives
+  conceptual feedback, second adds scaffold, third models the relationship and
+  sends the child to a near-transfer item. Preserve first-response data in the
+  log even when a later scaffold leads to the final answer.
 - Render imported config errors and user-controlled text with `textContent` or
   DOM text nodes, not `innerHTML`.
 - Validate adaptive configs defensively: parse facts/families, confirm
