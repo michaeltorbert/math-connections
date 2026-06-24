@@ -91,7 +91,14 @@ button:disabled{cursor:default}
 .progress-dots i.now{background:var(--amber);transform:scale(1.25)}
 
 /* equation practice */
-.picture-model{display:flex;gap:10px;justify-content:center;align-items:center;margin:0 auto 18px;min-height:38px}
+.picture-model{display:flex;gap:12px;justify-content:center;align-items:center;margin:0 auto 18px;min-height:54px;flex-wrap:wrap}
+.picture-model.whole-frame{border:2px solid #fbbf24;background:#fffbeb;border-radius:8px;padding:12px 14px;position:relative}
+.picture-model.whole-frame::after{content:"Whole";position:absolute;right:10px;top:-11px;background:#fffbeb;color:#92400e;
+  font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px}
+.picture-group{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;max-width:260px}
+.picture-group.labeled{border:1px dashed #cbd5e1;border-radius:8px;padding:10px 12px;position:relative;background:#fff}
+.picture-group.labeled::after{content:"Part";position:absolute;left:8px;top:-10px;background:#fff;color:var(--ink-soft);
+  font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:1px 5px}
 .dot{width:22px;height:22px;border-radius:50%;display:inline-block;border:1px solid rgba(15,35,63,0.1)}
 .dot.a{background:var(--blue)}
 .dot.b{background:var(--green)}
@@ -216,7 +223,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -230,7 +237,7 @@ const KEYS = {
 
 const MODES = ["factFamily"];                 // single, focused activity
 const LEGACY_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
-const STRUCTURE_TYPES = ["COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
+const STRUCTURE_TYPES = ["PICTURE_FAMILY", "COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
 const PROBLEM_TYPES = [...STRUCTURE_TYPES, ...LEGACY_TYPES];
 
 // Default adaptive config. Everything the AI loop can change lives here.
@@ -245,10 +252,11 @@ const DEFAULT_CONFIG = Object.freeze({
   avoidFamilies: [],
   emphasizeFacts: [],
   problemTypeMix: {
-    COMPANION: 0.34,
-    ADD_TO_SUB: 0.34,
+    PICTURE_FAMILY: 0.67,
+    COMPANION: 0.17,
+    ADD_TO_SUB: 0,
     NOT_FAMILY: 0.16,
-    WHOLE_FIRST: 0.16,
+    WHOLE_FIRST: 0,
     ADD: 0,
     SUB1: 0,
     SUB2: 0,
@@ -289,32 +297,32 @@ const FOCUS_DEFS = Object.freeze({
   additionRecall: {
     label: "addition fact recall",
     plan: "Practice addition rows first, then connect them to the family.",
-    multipliers: { ADD: 3, ADD_TO_SUB: 2.4, COMPANION: 1.2, SUB1: 1, SUB2: 1, CONNECT: 1.2, NOT_FAMILY: .7, WHOLE_FIRST: .7 },
+    multipliers: { PICTURE_FAMILY: 2.8, ADD: 3, ADD_TO_SUB: 2.4, COMPANION: 1.2, SUB1: 1, SUB2: 1, CONNECT: 1.2, NOT_FAMILY: .7, WHOLE_FIRST: .7 },
   },
   subtractionRecall: {
     label: "subtraction fact recall",
     plan: "Practice taking away before asking for the matching addition.",
-    multipliers: { COMPANION: 3, ADD_TO_SUB: 2.2, SUB1: 2.2, SUB2: 2.2, ADD: .8, CONNECT: 1, NOT_FAMILY: .7, WHOLE_FIRST: 1.4 },
+    multipliers: { PICTURE_FAMILY: 2.4, COMPANION: 3, ADD_TO_SUB: 2.2, SUB1: 2.2, SUB2: 2.2, ADD: .8, CONNECT: 1, NOT_FAMILY: .7, WHOLE_FIRST: 1.4 },
   },
   addToSubTransfer: {
     label: "turn addition into subtraction",
     plan: "Keep the whole first, then switch the two parts.",
-    multipliers: { COMPANION: 4.2, ADD_TO_SUB: 4, NOT_FAMILY: 1.8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: .6, SUB2: .6, CONNECT: 1.2 },
+    multipliers: { PICTURE_FAMILY: 3.8, COMPANION: 4.2, ADD_TO_SUB: 4, NOT_FAMILY: 1.8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: .6, SUB2: .6, CONNECT: 1.2 },
   },
   subToAddTransfer: {
     label: "turn subtraction into addition",
     plan: "Solve a take-away fact, then rebuild the matching addition.",
-    multipliers: { SUB1: 3, SUB2: 3, COMPANION: 2.2, ADD_TO_SUB: 1.4, ADD: .8, CONNECT: .8, NOT_FAMILY: 1, WHOLE_FIRST: 1 },
+    multipliers: { PICTURE_FAMILY: 2, SUB1: 3, SUB2: 3, COMPANION: 2.2, ADD_TO_SUB: 1.4, ADD: .8, CONNECT: .8, NOT_FAMILY: 1, WHOLE_FIRST: 1 },
   },
   pictureToEquation: {
     label: "turn pictures into equations",
     plan: "Start from a small picture and write the equations it shows.",
-    multipliers: { CONNECT: 4, WHOLE_FIRST: 2.2, ADD_TO_SUB: 1.6, COMPANION: 1.2, ADD: 1, SUB1: .7, SUB2: .7, NOT_FAMILY: 1 },
+    multipliers: { PICTURE_FAMILY: 5, CONNECT: 2, WHOLE_FIRST: 1.6, ADD_TO_SUB: 1.2, COMPANION: 1, ADD: .7, SUB1: .5, SUB2: .5, NOT_FAMILY: 1 },
   },
   wholeFirst: {
     label: "find the whole before subtracting",
     plan: "Pick the whole first; subtraction in this family starts with the whole.",
-    multipliers: { WHOLE_FIRST: 4.4, NOT_FAMILY: 3.2, COMPANION: 2.4, ADD_TO_SUB: 1.8, ADD: .5, SUB1: .7, SUB2: .7, CONNECT: 1 },
+    multipliers: { PICTURE_FAMILY: 3.2, WHOLE_FIRST: 4.4, NOT_FAMILY: 3.2, COMPANION: 2.4, ADD_TO_SUB: 1.8, ADD: .5, SUB1: .7, SUB2: .7, CONNECT: 1 },
   },
 });
 
@@ -444,12 +452,15 @@ function factsOfFamilyId(id){
   return fam ? factsOfFamily(fam) : [];
 }
 function isStructuralType(type){ return STRUCTURE_TYPES.includes(type); }
-function needsDistinctParts(type){ return type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
+function isPictureFamilyType(type){ return type === "PICTURE_FAMILY"; }
+function needsDistinctParts(type){ return type === "PICTURE_FAMILY" || type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
 function relevantFact(type, fam){
   switch(type){
     case "ADD":  return `${fam.a}+${fam.b}`;
     case "SUB1": return `${fam.whole}-${fam.a}`;   // answer = b
     case "SUB2": return `${fam.whole}-${fam.b}`;   // answer = a
+    case "PICTURE_FAMILY":
+      return `${fam.a}+${fam.b}`;
     case "COMPANION":
     case "ADD_TO_SUB":
     case "NOT_FAMILY":
@@ -551,7 +562,7 @@ function buildSessionTypePlan(cfg, focus){
   const entries = PROBLEM_TYPES
     .map(t => ({ type: t, weight: Math.max(0, Number(mix[t]) || 0) }))
     .filter(e => e.weight > 0);
-  if (!entries.length) return Array.from({ length }, () => weightedType(DEFAULT_CONFIG.problemTypeMix));
+  if (!entries.length) return arrangeSessionTypePlan(Array.from({ length }, () => weightedType(DEFAULT_CONFIG.problemTypeMix)));
   const total = entries.reduce((s, e) => s + e.weight, 0);
   let used = 0;
   for (const e of entries){
@@ -564,7 +575,16 @@ function buildSessionTypePlan(cfg, focus){
   for (let i = 0; used < length; i++, used++) entries[i % entries.length].count++;
   const plan = [];
   for (const e of entries) for (let i = 0; i < e.count; i++) plan.push(e.type);
-  return shuffled(plan).slice(0, length);
+  return arrangeSessionTypePlan(shuffled(plan).slice(0, length));
+}
+
+function arrangeSessionTypePlan(plan){
+  const out = plan.slice();
+  const idx = out.lastIndexOf("PICTURE_FAMILY");
+  if (idx === -1) return out;
+  out.splice(idx, 1);
+  out.push("PICTURE_FAMILY");
+  return out;
 }
 
 function focusedTypeMix(mix, focus){
@@ -624,6 +644,12 @@ function classifyDeficitSignals(record){
           ? "kept the family structure but made an arithmetic subtraction error"
         : code === "DUPLICATE_SUBTRACTION"
           ? "repeated one subtraction instead of making both matching subtractions"
+        : code === "PICTURE_PART_COUNT_ERROR"
+          ? "miscounted one of the colored parts in the picture"
+        : code === "PICTURE_WHOLE_COUNT_ERROR"
+          ? "did not identify the whole as all of the dots together"
+        : code === "PICTURE_ADDITION_ARITHMETIC_ERROR"
+          ? "used picture numbers but did not write a true addition"
         : code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY"
           ? "did not keep the family whole in the first subtraction position"
           : "did not switch the two parts to make the companion subtraction",
@@ -674,10 +700,23 @@ function classifyDeficitSignals(record){
         subMisses.map(a => a.fact),
         picAdd && picAdd.correctFirstTry ? "picture addition was right but subtraction was missed" : "picture subtraction was missed");
     }
+  } else if (record.problemType === "PICTURE_FAMILY"){
+    const countMisses = missed.filter(a => a.operation === "count");
+    if (countMisses.length) push("pictureToEquation", [], "picture quantities were miscounted");
+    if (addMisses.length) push("pictureToEquation", addMisses.map(a => a.fact), "picture did not turn into the addition equation");
+    if (subMisses.length){
+      push(addMisses.length ? "pictureToEquation" : "addToSubTransfer",
+        subMisses.map(a => a.fact),
+        addMisses.length ? "picture equations were not mapped consistently" : "picture addition was right but subtraction was missed");
+    }
   }
 
   if (!signals.length){
-    const op = missed[0].operation === "subtraction" ? "subtractionRecall" : "additionRecall";
+    const op = missed[0].operation === "subtraction"
+      ? "subtractionRecall"
+      : missed[0].operation === "count"
+        ? "pictureToEquation"
+        : "additionRecall";
     push(op, missed.map(a => a.fact), "missed the first answer");
   }
   return signals;
@@ -857,13 +896,136 @@ function expectedConstructKeys(p){
   return (p.constructRows || []).map(row => constructRowKey(row.expected || []));
 }
 
+function pictureAdditionKeys(p){
+  return [
+    constructRowKey([p.a, p.b, p.whole]),
+    constructRowKey([p.b, p.a, p.whole]),
+  ];
+}
+
+function pictureSubtractionKeys(p){
+  return [
+    constructRowKey([p.whole, p.a, p.b]),
+    constructRowKey([p.whole, p.b, p.a]),
+  ];
+}
+
+function gradePictureAdditionRow(p, row, values){
+  const grade = {
+    row,
+    values,
+    isCorrect: false,
+    errorCode: null,
+    arithmeticCorrect: null,
+    familyCorrect: false,
+    acceptedExpected: row.expected || [],
+  };
+  if (!allNumbers(values)) return grade;
+
+  const [left, right, sum] = values;
+  const parts = [p.a, p.b];
+  const partCountsValid = parts.includes(left) && parts.includes(right) && left + right === p.whole;
+  grade.arithmeticCorrect = left + right === sum;
+
+  if (sum !== p.whole){
+    grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "PICTURE_WHOLE_COUNT_ERROR";
+    return grade;
+  }
+  if (!partCountsValid){
+    grade.errorCode = "PICTURE_PART_COUNT_ERROR";
+    return grade;
+  }
+  if (!grade.arithmeticCorrect){
+    grade.errorCode = "PICTURE_ADDITION_ARITHMETIC_ERROR";
+    return grade;
+  }
+
+  grade.isCorrect = true;
+  grade.familyCorrect = true;
+  grade.acceptedExpected = values.slice();
+  return grade;
+}
+
+function gradePictureCountRow(p, row, values){
+  const grade = {
+    row,
+    values,
+    isCorrect: false,
+    errorCode: null,
+    arithmeticCorrect: null,
+    familyCorrect: false,
+    acceptedExpected: row.expected || [],
+  };
+  if (!allNumbers(values)) return grade;
+  grade.isCorrect = values[0] === row.expected[0];
+  grade.familyCorrect = grade.isCorrect;
+  if (!grade.isCorrect){
+    grade.errorCode = row.role === "whole" ? "PICTURE_WHOLE_COUNT_ERROR" : "PICTURE_PART_COUNT_ERROR";
+  }
+  return grade;
+}
+
+function gradePictureSubtractionRow(p, row, values, usedPictureSubtractions){
+  const grade = {
+    row,
+    values,
+    isCorrect: false,
+    errorCode: null,
+    arithmeticCorrect: null,
+    familyCorrect: false,
+    acceptedExpected: row.expected || [],
+  };
+  if (!allNumbers(values)) return grade;
+
+  const [whole, subtrahend, difference] = values;
+  const parts = [p.a, p.b];
+  const key = constructRowKey(values);
+  grade.arithmeticCorrect = whole - subtrahend === difference;
+
+  if (whole !== p.whole && parts.includes(whole) && parts.includes(subtrahend) && grade.arithmeticCorrect){
+    grade.errorCode = "PART_MINUS_PART";
+    return grade;
+  }
+  if (whole !== p.whole){
+    grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "WHOLE_NOT_FIRST";
+    return grade;
+  }
+  if (parts.includes(subtrahend) && !grade.arithmeticCorrect){
+    grade.errorCode = "ARITHMETIC_ERROR";
+    return grade;
+  }
+  if (!parts.includes(subtrahend) || !parts.includes(difference)){
+    grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "WRONG_PART_POSITION";
+    return grade;
+  }
+  if (!pictureSubtractionKeys(p).includes(key)){
+    grade.errorCode = "WRONG_PART_POSITION";
+    return grade;
+  }
+  if (usedPictureSubtractions && usedPictureSubtractions.has(key)){
+    grade.errorCode = "DUPLICATE_SUBTRACTION";
+    return grade;
+  }
+
+  if (usedPictureSubtractions) usedPictureSubtractions.add(key);
+  grade.isCorrect = true;
+  grade.familyCorrect = true;
+  grade.acceptedExpected = values.slice();
+  return grade;
+}
+
 function gradeConstructRows(p, results){
   const rows = p.constructRows || [];
   if (!rows.length) return [];
   const expectedKeys = expectedConstructKeys(p);
   const used = new Set();
+  const pictureSubtractionRows = rows.filter(row => row.skill === "pictureSubtraction");
+  const usedPictureSubtractions = pictureSubtractionRows.length > 1 ? new Set() : null;
   return rows.map(row => {
     const values = structuralRowValues(row, results);
+    if (row.skill === "pictureCount") return gradePictureCountRow(p, row, values);
+    if (row.skill === "pictureAddition") return gradePictureAdditionRow(p, row, values);
+    if (row.skill === "pictureSubtraction") return gradePictureSubtractionRow(p, row, values, usedPictureSubtractions);
     const grade = {
       row,
       values,
@@ -937,7 +1099,13 @@ function structuralErrorsForProblem(p, results){
     const result = results[0];
     return result && !result.isCorrect && result.errorCode ? [result.errorCode] : [];
   }
-  const errors = gradeConstructRows(p, results).map(grade => grade.errorCode).filter(Boolean);
+  const errors = [];
+  if (isPictureFamilyType(p.problemType)){
+    for (const result of results){
+      if (result.operation === "count" && !result.isCorrect && result.errorCode) errors.push(result.errorCode);
+    }
+  }
+  errors.push(...gradeConstructRows(p, results).map(grade => grade.errorCode).filter(Boolean));
   return [...new Set(errors)];
 }
 
@@ -946,6 +1114,11 @@ function structuralArithmeticCorrect(p, results){
   if (p.choiceOptions){
     const selected = p.choiceOptions.find(o => o.id === results[0]?.submitted);
     return selected ? Boolean(selected.arithmeticCorrect) : null;
+  }
+  if (isPictureFamilyType(p.problemType)){
+    const grades = gradeConstructRows(p, results)
+      .filter(grade => grade.row.skill === "pictureAddition" || grade.row.skill === "pictureSubtraction");
+    return grades.length ? grades.every(grade => grade.arithmeticCorrect === true) : null;
   }
   const rows = p.constructRows || [];
   if (!rows.length) return null;
@@ -958,12 +1131,20 @@ function structuralArithmeticCorrect(p, results){
 function structuralFamilyCorrect(p, results){
   if (!isStructuralType(p.problemType)) return null;
   if (p.choiceOptions) return Boolean(results[0]?.isCorrect);
+  if (isPictureFamilyType(p.problemType)){
+    const byId = Object.fromEntries(results.map(r => [r.id, r]));
+    const countFields = (p.fields || []).filter(field => field.operation === "count");
+    const countsCorrect = countFields.every(field => byId[field.id] && byId[field.id].isCorrect);
+    const grades = gradeConstructRows(p, results);
+    return countsCorrect && grades.every(grade => grade.isCorrect);
+  }
   const grades = gradeConstructRows(p, results);
   return grades.length ? grades.every(grade => grade.isCorrect) : results.every(r => r.isCorrect);
 }
 
 function focusForErrorCode(code){
   if (code === "PART_MINUS_PART" || code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY") return "wholeFirst";
+  if (code === "PICTURE_PART_COUNT_ERROR" || code === "PICTURE_WHOLE_COUNT_ERROR" || code === "PICTURE_ADDITION_ARITHMETIC_ERROR") return "pictureToEquation";
   if (code === "ARITHMETIC_ERROR") return "subtractionRecall";
   if (code === "PARTS_NOT_SWITCHED" || code === "WRONG_PART_POSITION" || code === "DUPLICATE_SUBTRACTION") return "addToSubTransfer";
   return "addToSubTransfer";
@@ -1151,7 +1332,36 @@ function knownPart(value, cls){
   return { type: "text", text: String(value), className: cls || "known" };
 }
 
-function generateFactFamilyProblem(typeOverride){
+function makePictureField(id, expected, role, operation, fact, extra){
+  return makeField(id, "", expected, "", fact, operation, {
+    role,
+    tracksMastery: false,
+    ...(extra || {}),
+  });
+}
+
+function pictureRow(id, label, stage, fieldIds, expected, skill, parts){
+  return { id, label, stage, fieldIds, expected, skill, parts };
+}
+
+function pictureRowsForStage(p, stageIndex){
+  const stage = (p.pictureStages || [])[stageIndex];
+  if (!stage) return [];
+  const rowIds = new Set(stage.rowIds || []);
+  return (p.constructRows || []).filter(row => rowIds.has(row.id));
+}
+
+function pictureFieldIdsForStage(p, stageIndex){
+  return [...new Set(pictureRowsForStage(p, stageIndex).flatMap(row => row.fieldIds || []))];
+}
+
+function pictureStagePrompt(p, stageIndex){
+  const stage = (p.pictureStages || [])[stageIndex];
+  return stage ? stage.prompt : p.problemText;
+}
+
+function generateFactFamilyProblem(typeOverride, options){
+  options = options || {};
   const cfg = state.config;
   const pool = familiesInRange(cfg);
   const focus = derivePracticeFocus();
@@ -1159,11 +1369,95 @@ function generateFactFamilyProblem(typeOverride){
   const fam = selectWeightedFamily(pool, type, cfg, focus);
   const fact = relevantFact(type, fam);
   const story = buildStory(type, fam, fam.a, true);
-  const scaffoldLevel = deriveScaffoldLevel();
+  const scaffoldLevel = options.scaffoldLevel || deriveScaffoldLevel();
   let prompt, givenEquation = "", fields = [], visual = false, operation = "addition";
-  let constructRows = null, numberTiles = null, choiceOptions = null;
+  let constructRows = null, numberTiles = null, choiceOptions = null, pictureStages = null;
 
-  if (type === "COMPANION"){
+  if (type === "PICTURE_FAMILY"){
+    operation = "structure";
+    visual = true;
+    prompt = scaffoldLevel >= 4
+      ? "Use the picture to write an addition and a matching subtraction."
+      : "Use the picture to count the parts, find the whole, and write the matching equations.";
+    fields = [];
+    constructRows = [];
+    pictureStages = [];
+    const showRowLabels = scaffoldLevel <= 2;
+    const addFieldRef = (id, expected, role, op, rowFact) => {
+      fields.push(makePictureField(id, expected, role, op, rowFact));
+      return { type: "field", id };
+    };
+    const textPart = (text, cls) => ({ type: "text", text, className: cls || "known" });
+    const addRow = pictureRow("pictureAdd", showRowLabels ? "addition" : "", "addition",
+      ["picAddLeft", "picAddRight", "picAddWhole"],
+      [fam.a, fam.b, fam.whole],
+      "pictureAddition",
+      [
+        addFieldRef("picAddLeft", fam.a, "addend", "addition", `${fam.a}+${fam.b}`),
+        textPart("+", "op"),
+        addFieldRef("picAddRight", fam.b, "addend", "addition", `${fam.a}+${fam.b}`),
+        textPart("=", "equals"),
+        addFieldRef("picAddWhole", fam.whole, "sum", "addition", `${fam.a}+${fam.b}`),
+      ]);
+    const subRow = pictureRow("pictureSub", showRowLabels ? "subtraction" : "", "subtraction",
+      ["picSubWhole", "picSubPart", "picSubAnswer"],
+      [fam.whole, fam.a, fam.b],
+      "pictureSubtraction",
+      [
+        addFieldRef("picSubWhole", fam.whole, "whole", "subtraction", `${fam.whole}-${fam.a}`),
+        textPart("−", "op"),
+        addFieldRef("picSubPart", fam.a, "subtrahend", "subtraction", `${fam.whole}-${fam.a}`),
+        textPart("=", "equals"),
+        addFieldRef("picSubAnswer", fam.b, "difference", "subtraction", `${fam.whole}-${fam.a}`),
+      ]);
+    let secondSubRow = null;
+    if (scaffoldLevel === 3){
+      secondSubRow = pictureRow("pictureSubSwitch", "", "secondSubtraction",
+        ["picSub2Whole", "picSub2Part", "picSub2Answer"],
+        [fam.whole, fam.b, fam.a],
+        "pictureSubtraction",
+        [
+          addFieldRef("picSub2Whole", fam.whole, "whole", "subtraction", `${fam.whole}-${fam.b}`),
+          textPart("−", "op"),
+          addFieldRef("picSub2Part", fam.b, "subtrahend", "subtraction", `${fam.whole}-${fam.b}`),
+          textPart("=", "equals"),
+          addFieldRef("picSub2Answer", fam.a, "difference", "subtraction", `${fam.whole}-${fam.b}`),
+        ]);
+    }
+    if (scaffoldLevel <= 2){
+      const countRows = [
+        pictureRow("countA", "part", "count", ["picCountA"], [fam.a], "pictureCount",
+          [textPart(`${cap(story.colA)} dots`), addFieldRef("picCountA", fam.a, "partA", "count", fam.id)]),
+        pictureRow("countB", "part", "count", ["picCountB"], [fam.b], "pictureCount",
+          [textPart(`${cap(story.colB)} dots`), addFieldRef("picCountB", fam.b, "partB", "count", fam.id)]),
+        pictureRow("countWhole", "whole", "count", ["picCountWhole"], [fam.whole], "pictureCount",
+          [textPart("All dots"), addFieldRef("picCountWhole", fam.whole, "whole", "count", fam.id)]),
+      ];
+      countRows[0].role = "part";
+      countRows[1].role = "part";
+      countRows[2].role = "whole";
+      constructRows.push(...countRows, addRow, subRow);
+      pictureStages.push(
+        { id: "count", prompt: "Count each colored part. Then count all the dots together.", rowIds: ["countA", "countB", "countWhole"] },
+        { id: "addition", prompt: "Addition joins the two parts. Write the addition from the picture.", rowIds: ["pictureAdd"] },
+        { id: "subtraction", prompt: "Subtraction starts with the whole and finds one part.", rowIds: ["pictureSub"] },
+      );
+    } else if (scaffoldLevel === 3){
+      constructRows.push(addRow, subRow, secondSubRow);
+      pictureStages.push(
+        { id: "addition", prompt: "Write an addition that matches the picture.", rowIds: ["pictureAdd"] },
+        { id: "subtraction", prompt: "Write a subtraction that starts with the whole.", rowIds: ["pictureSub"] },
+        { id: "secondSubtraction", prompt: "Now write the other subtraction from the same picture.", rowIds: ["pictureSubSwitch"] },
+      );
+    } else {
+      constructRows.push(addRow, subRow);
+      pictureStages.push({
+        id: "independent",
+        prompt: "Use the picture to fill both equations.",
+        rowIds: ["pictureAdd", "pictureSub"],
+      });
+    }
+  } else if (type === "COMPANION"){
     operation = "structure";
     const givenSub = Math.random() < .5 ? fam.a : fam.b;
     const givenAnswer = fam.whole - givenSub;
@@ -1283,7 +1577,9 @@ function generateFactFamilyProblem(typeOverride){
   }
 
   const primary = fields[0] || makeField("meta", "", fam.whole, "", fact, operation);
-  const canonical = constructRows
+  const canonical = isPictureFamilyType(type)
+    ? `${fam.a}+${fam.b}=${fam.whole};${fam.whole}-${fam.a}=${fam.b}`
+    : constructRows
     ? constructRows.map(row => `${row.expected[0]}-${row.expected[1]}=${row.expected[2]}`).join(";")
     : choiceOptions
       ? (choiceOptions.find(o => o.isCorrect)?.text || "")
@@ -1306,6 +1602,8 @@ function generateFactFamilyProblem(typeOverride){
     visual,
     fields,
     constructRows,
+    pictureStages,
+    pictureLabels: isPictureFamilyType(type) && scaffoldLevel <= 2,
     numberTiles,
     choiceOptions,
     scaffoldLevel,
@@ -1337,17 +1635,35 @@ function startSession(){
   beginNextProblem();
 }
 
+function scaffoldForPlannedProblem(type){
+  if (type !== "PICTURE_FAMILY" || !state.session || !state.session.typePlan) return null;
+  const plan = state.session.typePlan;
+  const index = state.session.index;
+  const pictureIndexes = plan
+    .map((t, i) => t === "PICTURE_FAMILY" ? i : -1)
+    .filter(i => i >= 0);
+  const occurrence = pictureIndexes.indexOf(index);
+  if (occurrence === -1) return null;
+  if (index === pictureIndexes[pictureIndexes.length - 1]) return 4;
+  if (occurrence === 0) return 1;
+  if (occurrence === 1) return 2;
+  return 3;
+}
+
 function beginNextProblem(){
   const type = state.session && state.session.typePlan ? state.session.typePlan[state.session.index] : null;
-  state.problem = generateFactFamilyProblem(type);
+  const scaffoldLevel = scaffoldForPlannedProblem(type);
+  state.problem = generateFactFamilyProblem(type, scaffoldLevel ? { scaffoldLevel } : {});
   state.lastKey = state.problem.factFamilyId + "|" + state.problem.problemType;
   state.view = {
     answers: {},
     attempts: 0,
     firstAnswer: null,
     firstAnswers: null,
+    firstResultById: {},
     firstFieldResults: null,
     fieldResults: {},
+    pictureStageIndex: 0,
     selectedChoice: null,
     hintUsed: false,
     morphViewed: false,
@@ -1362,12 +1678,93 @@ function beginNextProblem(){
 }
 
 function spokenPrompt(p){
-  return p.problemText;
+  return isPictureFamilyType(p.problemType) ? pictureStagePrompt(p, 0) : p.problemText;
+}
+
+function resultForField(field, raw){
+  const numeric = Number(raw);
+  return {
+    id: field.id,
+    fact: field.fact,
+    operation: field.operation,
+    role: field.role || null,
+    expected: field.expected,
+    submitted: raw === "" ? null : numeric,
+    isCorrect: raw !== "" && Number.isInteger(numeric) && numeric === field.expected,
+    tracksMastery: field.tracksMastery !== false,
+    locked: Boolean(field.locked),
+  };
+}
+
+function rememberFirstResults(results){
+  const v = state.view;
+  if (v.firstAnswers === null) v.firstAnswers = {};
+  if (!v.firstResultById) v.firstResultById = {};
+  for (const result of results){
+    if (!Object.prototype.hasOwnProperty.call(v.firstResultById, result.id)){
+      v.firstResultById[result.id] = Object.assign({}, result);
+      v.firstAnswers[result.id] = result.submitted;
+      if (v.firstAnswer === null) v.firstAnswer = result.submitted;
+    }
+  }
+  v.firstFieldResults = state.problem.fields
+    .map(field => v.firstResultById[field.id])
+    .filter(Boolean)
+    .map(result => Object.assign({}, result));
+}
+
+function checkPictureFamily(){
+  const p = state.problem, v = state.view;
+  if (v.solved) return;
+  v.attempts++;
+  const stageIndex = v.pictureStageIndex || 0;
+  const stageRows = pictureRowsForStage(p, stageIndex);
+  const stageFieldIds = new Set(pictureFieldIdsForStage(p, stageIndex));
+  const answers = Object.assign({}, v.answers);
+  for (const field of p.fields){
+    if (!stageFieldIds.has(field.id)) continue;
+    const input = document.querySelector(`[data-answer-id="${field.id}"]`);
+    answers[field.id] = input ? input.value.trim() : "";
+  }
+  v.answers = answers;
+  const results = p.fields
+    .filter(field => stageFieldIds.has(field.id))
+    .map(field => resultForField(field, answers[field.id]));
+  const stageProblem = Object.assign({}, p, { constructRows: stageRows });
+  applyConstructRowGrades(stageProblem, results);
+  v.fieldResults = Object.assign({}, v.fieldResults, Object.fromEntries(results.map(r => [r.id, r])));
+  rememberFirstResults(results);
+
+  const allCorrect = results.length > 0 && results.every(result => result.isCorrect);
+  if (allCorrect){
+    if (stageIndex + 1 < (p.pictureStages || []).length){
+      v.pictureStageIndex = stageIndex + 1;
+      v.feedback = { kind: "correct", text: pictureStagePrompt(p, v.pictureStageIndex) };
+      speak(v.feedback.text);
+    } else {
+      v.solved = true;
+      v.feedback = { kind: "correct", text: "Yes. The picture, addition, and subtraction all match." };
+      speak(v.feedback.text);
+    }
+  } else {
+    const structuralErrors = structuralErrorsForProblem(stageProblem, results);
+    v.feedback = { kind: "wrong", text: structuralFeedback(p, structuralErrors) };
+    speak(v.feedback.text);
+    if (state.config.hintBehavior.autoHintAfterWrong &&
+        v.attempts >= state.config.hintBehavior.autoHintAfterWrong){
+      v.hintUsed = true;
+    }
+  }
+  render();
 }
 
 function checkFactFamily(){
   const p = state.problem, v = state.view;
   if (v.solved) return;
+  if (isPictureFamilyType(p.problemType)){
+    checkPictureFamily();
+    return;
+  }
   v.attempts++;
   if (p.choiceOptions){
     const selected = p.choiceOptions.find(o => o.id === v.selectedChoice) || null;
@@ -1417,21 +1814,7 @@ function checkFactFamily(){
     }
   }
   v.answers = answers;
-  const results = p.fields.map(field => {
-    const raw = answers[field.id];
-    const numeric = Number(raw);
-    return {
-      id: field.id,
-      fact: field.fact,
-      operation: field.operation,
-      role: field.role || null,
-      expected: field.expected,
-      submitted: raw === "" ? null : numeric,
-      isCorrect: raw !== "" && Number.isInteger(numeric) && numeric === field.expected,
-      tracksMastery: field.tracksMastery !== false,
-      locked: Boolean(field.locked),
-    };
-  });
+  const results = p.fields.map(field => resultForField(field, answers[field.id]));
   applyConstructRowGrades(p, results);
   if (v.firstAnswers === null){
     v.firstAnswers = Object.assign({}, answers);
@@ -1461,6 +1844,18 @@ function checkFactFamily(){
 function pickPraise(){ return ["Great job!","You got it!","Nice work!","Brilliant!","Way to go!"][rand(0,4)]; }
 function encourage(){ return `Check each equation. The same three numbers should match.`; }
 function structuralFeedback(p, codes){
+  if (isPictureFamilyType(p.problemType) && codes.includes("PICTURE_PART_COUNT_ERROR")){
+    return `Count one colored part at a time. The two parts make one whole.`;
+  }
+  if (isPictureFamilyType(p.problemType) && codes.includes("PICTURE_WHOLE_COUNT_ERROR")){
+    return `The whole means all the dots together. Count both parts together.`;
+  }
+  if (isPictureFamilyType(p.problemType) && (codes.includes("PART_MINUS_PART") || codes.includes("TRUE_BUT_OTHER_FAMILY"))){
+    return `That equation can be true, but it does not use all the dots in this picture. The whole is all ${p.whole} dots, so subtraction starts with ${p.whole}.`;
+  }
+  if (isPictureFamilyType(p.problemType) && codes.includes("ARITHMETIC_ERROR")){
+    return `You started with the whole correctly. Cover one part. How many dots remain?`;
+  }
   if (codes.includes("PART_MINUS_PART") || codes.includes("TRUE_BUT_OTHER_FAMILY")){
     return `That equation can be true, but it belongs to a different family. This family's whole is ${p.whole}, so subtraction starts with ${p.whole}.`;
   }
@@ -1482,7 +1877,9 @@ function structuralFeedback(p, codes){
 function showHint(){
   state.view.hintUsed = true;
   const p = state.problem;
-  const msg = `${p.a}, ${p.b}, and ${p.whole} belong together. ${p.whole} is the whole, so subtraction starts with ${p.whole}. The parts, ${p.a} and ${p.b}, switch places.`;
+  const msg = isPictureFamilyType(p.problemType)
+    ? `Two parts make one whole. Addition joins ${p.a} and ${p.b} to make ${p.whole}. Subtraction starts with the whole, ${p.whole}, and finds one part.`
+    : `${p.a}, ${p.b}, and ${p.whole} belong together. ${p.whole} is the whole, so subtraction starts with ${p.whole}. The parts, ${p.a} and ${p.b}, switch places.`;
   speak(msg);
   render();
 }
@@ -1693,10 +2090,22 @@ function renderHome(){
 
 /* ---------- PLAY ---------- */
 function renderPictureModel(p){
-  const model = el("div", "picture-model");
+  const model = el("div", "picture-model" + (p.pictureLabels ? " whole-frame" : ""));
   if (!p.visual) return model;
-  for (let i = 0; i < p.a; i++) model.appendChild(el("span", "dot a"));
-  for (let i = 0; i < p.b; i++) model.appendChild(el("span", "dot b"));
+  const groupA = el("div", "picture-group" + (p.pictureLabels ? " labeled" : ""));
+  const groupB = el("div", "picture-group" + (p.pictureLabels ? " labeled" : ""));
+  for (let i = 0; i < p.a; i++){
+    const dot = el("span", "dot a");
+    if (p.story && p.story.colA) dot.style.background = `var(--${p.story.colA})`;
+    groupA.appendChild(dot);
+  }
+  for (let i = 0; i < p.b; i++){
+    const dot = el("span", "dot b");
+    if (p.story && p.story.colB) dot.style.background = `var(--${p.story.colB})`;
+    groupB.appendChild(dot);
+  }
+  model.appendChild(groupA);
+  model.appendChild(groupB);
   return model;
 }
 
@@ -1752,7 +2161,10 @@ function renderConstructInput(field){
 function renderConstructRows(p){
   const set = el("div", "equation-set");
   const fieldsById = Object.fromEntries(p.fields.map(f => [f.id, f]));
-  for (const rowDef of p.constructRows || []){
+  const rows = isPictureFamilyType(p.problemType)
+    ? pictureRowsForStage(p, state.view.pictureStageIndex || 0)
+    : (p.constructRows || []);
+  for (const rowDef of rows){
     const row = el("div", "equation-row");
     if (rowDef.label) row.appendChild(el("span", "label", rowDef.label));
     for (const part of rowDef.parts || []){
@@ -1837,7 +2249,9 @@ function renderPlay(){
 
   // story / prompt
   const story = el("div", "story");
-  story.textContent = p.problemText;
+  story.textContent = isPictureFamilyType(p.problemType)
+    ? pictureStagePrompt(p, v.pictureStageIndex || 0)
+    : p.problemText;
   card.appendChild(story);
 
   card.appendChild(renderPictureModel(p));
@@ -1880,7 +2294,9 @@ function renderPlay(){
   // hint detail
   if (v.hintUsed && !v.solved){
     const h = el("div", "banner wrong");
-    h.textContent = `${p.a} + ${p.b} = ${p.whole}, so ${p.whole} − ${p.a} = ${p.b} and ${p.whole} − ${p.b} = ${p.a}.`;
+    h.textContent = isPictureFamilyType(p.problemType)
+      ? `Two parts make one whole. ${p.a} + ${p.b} = ${p.whole}. Subtraction starts with the whole: ${p.whole} − one part = the other part.`
+      : `${p.a} + ${p.b} = ${p.whole}, so ${p.whole} − ${p.a} = ${p.b} and ${p.whole} − ${p.b} = ${p.a}.`;
     card.appendChild(h);
   }
 
@@ -2222,8 +2638,8 @@ const ANALYSIS_INSTRUCTIONS =
 ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=3).
 The DATA below is JSON exported from his practice app.
 
-Each problem record has: problemType (COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST |
-ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"), operation,
+Each problem record has: problemType (PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY |
+WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"), operation,
 correctAnswer, childAnswer, errorValue (for arithmetic-answer problems), answers[] (one row
 per equation blank or choice), structuralErrorCodes[], arithmeticCorrect, familyCorrect,
 scaffoldLevel, attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs, focusId/focusReason
@@ -2235,14 +2651,17 @@ Please find:
 2. What KIND of weakness is showing up: addition fact recall, subtraction fact recall,
    addition->subtraction transfer, subtraction->addition transfer, picture->equation mapping,
    or whole-first structure.
-3. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
+3. For PICTURE_FAMILY records, separate counting parts, finding the whole, writing the addition,
+   starting subtraction with the whole, and completing the subtraction.
+4. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
    where the equation may be arithmetically true but does not belong to the displayed family.
-4. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+5. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
    answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
-5. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
+6. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
    Treat ARITHMETIC_ERROR as subtraction recall, and DUPLICATE_SUBTRACTION or PARTS_NOT_SWITCHED
-   as add-to-subtract transfer/structure.
-6. A recommended next focus (2-4 families or facts), with brief reasoning.
+   as add-to-subtract transfer/structure. Treat PICTURE_PART_COUNT_ERROR,
+   PICTURE_WHOLE_COUNT_ERROR, and PICTURE_ADDITION_ARITHMETIC_ERROR as picture-to-equation evidence.
+7. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
 PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
@@ -2316,8 +2735,9 @@ function runSelfTests(){
 
   const defaultPlan = buildSessionTypePlan(DEFAULT_CONFIG);
   const planCounts = Object.fromEntries(PROBLEM_TYPES.map(t => [t, defaultPlan.filter(x => x === t).length]));
-  ok(defaultPlan.length === 6 && planCounts.COMPANION === 2 && planCounts.ADD_TO_SUB === 2 &&
-    planCounts.NOT_FAMILY === 1 && planCounts.WHOLE_FIRST === 1, "default session plan is 2/2/1/1 structural mix");
+  ok(defaultPlan.length === 6 && planCounts.PICTURE_FAMILY === 4 && planCounts.COMPANION === 1 &&
+    planCounts.NOT_FAMILY === 1 && defaultPlan[defaultPlan.length - 1] === "PICTURE_FAMILY",
+    "default session plan is 4 picture, 1 companion, 1 not-family, ending with picture transfer");
 
   // problem generation invariants (200 iters across structural + arithmetic types)
   const savedCfg = state.config, savedLast = state.lastKey;
@@ -2326,8 +2746,17 @@ function runSelfTests(){
     const familyGood = p.a <= p.b && p.a + p.b === p.whole && p.whole <= p.range && Array.isArray(p.fields) && p.fields.length > 0;
     let shapeGood = false;
     if (isStructuralType(p.problemType)){
-      const structureFieldsGood = p.fields.every(f => f.operation === "structure" && f.tracksMastery === false);
-      if (p.constructRows){
+      const structureFieldsGood = p.fields.every(f => (f.operation === "structure" || f.operation === "count" ||
+          f.operation === "addition" || f.operation === "subtraction") && f.tracksMastery === false);
+      if (p.problemType === "PICTURE_FAMILY"){
+        const stageRowIds = new Set((p.pictureStages || []).flatMap(stage => stage.rowIds || []));
+        shapeGood = p.visual && p.constructRows && p.constructRows.length >= 2 &&
+          p.constructRows.every(row => stageRowIds.has(row.id) &&
+            (row.skill === "pictureCount" ||
+              (row.skill === "pictureAddition" && row.expected[0] + row.expected[1] === row.expected[2] && row.expected[2] === p.whole) ||
+              (row.skill === "pictureSubtraction" && row.expected[0] === p.whole && row.expected[0] - row.expected[1] === row.expected[2]))) &&
+          structureFieldsGood;
+      } else if (p.constructRows){
         shapeGood = p.constructRows.every(row => row.expected[0] === p.whole &&
           [p.a, p.b].includes(row.expected[1]) && [p.a, p.b].includes(row.expected[2]) &&
           row.expected[1] !== row.expected[2] && row.expected[1] + row.expected[2] === p.whole) && structureFieldsGood;
@@ -2375,6 +2804,48 @@ function runSelfTests(){
   };
   const structuralSignals = classifyDeficitSignals(structuralMiss).map(s => s.id);
   ok(structuralSignals.includes("wholeFirst"), "part-minus-part routes to whole-first focus");
+
+  const pictureBase = {
+    problemType: "PICTURE_FAMILY",
+    a: 3,
+    b: 4,
+    whole: 7,
+    fields: [],
+  };
+  const pictureAdditionProblem = Object.assign({}, pictureBase, {
+    constructRows: [
+      { id: "pictureAdd", fieldIds: ["pa", "pb", "pw"], expected: [3, 4, 7], skill: "pictureAddition" },
+    ],
+  });
+  const reversedPictureAdd = [
+    { id: "pa", submitted: 4 },
+    { id: "pb", submitted: 3 },
+    { id: "pw", submitted: 7 },
+  ];
+  applyConstructRowGrades(pictureAdditionProblem, reversedPictureAdd);
+  ok(reversedPictureAdd.every(r => r.isCorrect), "PICTURE_FAMILY addition accepts either part order");
+
+  const pictureSubProblem = Object.assign({}, pictureBase, {
+    constructRows: [
+      { id: "pictureSub", fieldIds: ["sw", "ss", "sd"], expected: [7, 3, 4], skill: "pictureSubtraction" },
+    ],
+  });
+  const partMinusPartRows = [
+    { id: "sw", submitted: 4 },
+    { id: "ss", submitted: 3 },
+    { id: "sd", submitted: 1 },
+  ];
+  ok(structuralErrorsForProblem(pictureSubProblem, partMinusPartRows).includes("PART_MINUS_PART"),
+    "PICTURE_FAMILY flags true part-minus-part subtraction separately");
+  const pictureArithmeticRows = [
+    { id: "sw", submitted: 7 },
+    { id: "ss", submitted: 3 },
+    { id: "sd", submitted: 3 },
+  ];
+  ok(structuralErrorsForProblem(pictureSubProblem, pictureArithmeticRows).includes("ARITHMETIC_ERROR"),
+    "PICTURE_FAMILY flags whole-first wrong remainder as arithmetic error");
+  ok(focusForErrorCode("PICTURE_WHOLE_COUNT_ERROR") === "pictureToEquation",
+    "picture counting errors route to picture-to-equation focus");
 
   const addToSubProblem = {
     problemType: "ADD_TO_SUB",
