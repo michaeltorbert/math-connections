@@ -136,7 +136,7 @@ Each **problem record**:
   "correctFirstTry": false,
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
-  "hintSequence": ["conceptualFeedback", "addedScaffold"],
+  "hintSequence": ["addition:conceptualFeedback", "addition:addedScaffold"],
   "modeledAnswer": false,
   "morphViewed": false,
   "answers": [

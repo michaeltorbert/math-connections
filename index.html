@@ -1821,6 +1821,7 @@ function beginNextProblem(){
     firstFieldResults: null,
     fieldResults: {},
     pictureStageIndex: 0,
+    pictureStageAttempts: {},
     forcePictureLabels: false,
     modeledAnswer: false,
     hintSequence: [],
@@ -1880,8 +1881,13 @@ function checkPictureFamily(){
   if (v.solved) return;
   v.attempts++;
   const stageIndex = v.pictureStageIndex || 0;
+  const stage = (p.pictureStages || [])[stageIndex] || { id: `stage${stageIndex}` };
+  const stageId = stage.id || `stage${stageIndex}`;
   const stageRows = pictureRowsForStage(p, stageIndex);
   const stageFieldIds = new Set(pictureFieldIdsForStage(p, stageIndex));
+  if (!v.pictureStageAttempts) v.pictureStageAttempts = {};
+  v.pictureStageAttempts[stageId] = (v.pictureStageAttempts[stageId] || 0) + 1;
+  const stageAttempts = v.pictureStageAttempts[stageId];
   const answers = Object.assign({}, v.answers);
   for (const field of p.fields){
     if (!stageFieldIds.has(field.id)) continue;
@@ -1911,25 +1917,26 @@ function checkPictureFamily(){
   } else {
     const structuralErrors = structuralErrorsForProblem(stageProblem, results);
     v.feedback = { kind: "wrong", text: structuralFeedback(p, structuralErrors) };
-    if (v.attempts === 1 && !v.hintSequence.includes("conceptualFeedback")){
-      v.hintSequence.push("conceptualFeedback");
+    const hintStep = (step) => `${stageId}:${step}`;
+    if (stageAttempts === 1 && !v.hintSequence.includes(hintStep("conceptualFeedback"))){
+      v.hintSequence.push(hintStep("conceptualFeedback"));
     }
-    if (v.attempts === 2 && !v.hintSequence.includes("addedScaffold")){
+    if (stageAttempts === 2 && !v.hintSequence.includes(hintStep("addedScaffold"))){
       v.forcePictureLabels = true;
       v.hintUsed = true;
-      v.hintSequence.push("addedScaffold");
+      v.hintSequence.push(hintStep("addedScaffold"));
     }
-    if (v.attempts >= 3 && !v.hintSequence.includes("modeledRelationship")){
+    if (stageAttempts >= 3 && !v.hintSequence.includes(hintStep("modeledRelationship"))){
       v.forcePictureLabels = true;
       v.hintUsed = true;
       v.modeledAnswer = true;
       v.solved = true;
-      v.hintSequence.push("modeledRelationship");
+      v.hintSequence.push(hintStep("modeledRelationship"));
       v.feedback = { kind: "wrong", text: `Let's model this one: ${p.a} + ${p.b} = ${p.whole}, and ${p.whole} − ${p.a} = ${p.b}. Try a new one next.` };
     }
     speak(v.feedback.text);
     if (state.config.hintBehavior.autoHintAfterWrong &&
-        v.attempts >= state.config.hintBehavior.autoHintAfterWrong){
+        stageAttempts >= state.config.hintBehavior.autoHintAfterWrong){
       v.hintUsed = true;
     }
   }
@@ -2029,6 +2036,9 @@ function structuralFeedback(p, codes){
   }
   if (isPictureFamilyType(p.problemType) && codes.includes("PICTURE_WHOLE_COUNT_ERROR")){
     return `The whole means all the dots together. Count both parts together.`;
+  }
+  if (isPictureFamilyType(p.problemType) && codes.includes("PICTURE_ADDITION_ARITHMETIC_ERROR")){
+    return `Those are the right picture parts. Check the addition total again.`;
   }
   if (isPictureFamilyType(p.problemType) && (codes.includes("PART_MINUS_PART") || codes.includes("TRUE_BUT_OTHER_FAMILY"))){
     return `That equation can be true, but it does not use all the dots in this picture. The whole is all ${p.whole} dots, so subtraction starts with ${p.whole}.`;
@@ -3047,6 +3057,8 @@ function runSelfTests(){
   ];
   ok(structuralErrorsForProblem(pictureAdditionProblem, wrongPictureSum).includes("PICTURE_ADDITION_ARITHMETIC_ERROR"),
     "PICTURE_FAMILY classifies correct parts with wrong sum as addition arithmetic");
+  ok(structuralFeedback(pictureAdditionProblem, ["PICTURE_ADDITION_ARITHMETIC_ERROR"]).includes("addition total"),
+    "PICTURE_FAMILY gives addition-specific feedback for wrong picture sum");
 
   const pictureSubProblem = Object.assign({}, pictureBase, {
     constructRows: [
@@ -3114,6 +3126,54 @@ function runSelfTests(){
   ok(arithmeticErrors.includes("ARITHMETIC_ERROR"), "wrong subtraction with the right whole and parts is an arithmetic error");
   ok(!arithmeticErrors.includes("PARTS_NOT_SWITCHED") && !arithmeticErrors.includes("WRONG_PART_POSITION"),
     "arithmetic errors are not misclassified as part-switching errors");
+
+  const savedProblemForPictureStages = state.problem;
+  const savedViewForPictureStages = state.view;
+  const savedScreenForPictureStages = state.screen;
+  const savedQuerySelectorForPictureStages = document.querySelector;
+  const stagedProblem = generateFactFamilyProblem("PICTURE_FAMILY", { scaffoldLevel: 1, familyOverride: "3+4=7" });
+  const stagedAnswers = {};
+  document.querySelector = (selector) => {
+    const m = String(selector).match(/data-answer-id="([^"]+)"/);
+    return { value: m ? (stagedAnswers[m[1]] || "") : "" };
+  };
+  state.problem = stagedProblem;
+  state.screen = "home";
+  state.view = {
+    answers: {},
+    attempts: 0,
+    firstAnswer: null,
+    firstAnswers: null,
+    firstResultById: {},
+    firstFieldResults: null,
+    fieldResults: {},
+    pictureStageIndex: 0,
+    pictureStageAttempts: {},
+    forcePictureLabels: false,
+    modeledAnswer: false,
+    hintSequence: [],
+    hintUsed: false,
+    morphViewed: false,
+    showMorph: false,
+    solved: false,
+    feedback: null,
+    startedAt: Date.now(),
+  };
+  Object.assign(stagedAnswers, { picCountA: "2", picCountB: "4", picCountWhole: "7" });
+  checkPictureFamily();
+  checkPictureFamily();
+  Object.assign(stagedAnswers, { picCountA: "3", picCountB: "4", picCountWhole: "7" });
+  checkPictureFamily();
+  Object.assign(stagedAnswers, { picAddLeft: "3", picAddRight: "4", picAddWhole: "6" });
+  checkPictureFamily();
+  ok(state.view.pictureStageIndex === 1 && !state.view.solved &&
+    state.view.hintSequence.includes("addition:conceptualFeedback") &&
+    !state.view.hintSequence.includes("addition:modeledRelationship"),
+    "PICTURE_FAMILY correction attempts reset per stage before modeling");
+  document.querySelector = savedQuerySelectorForPictureStages;
+  state.problem = savedProblemForPictureStages;
+  state.view = savedViewForPictureStages;
+  state.screen = savedScreenForPictureStages;
 
   const savedViewForChoice = state.view;
   state.view = {
