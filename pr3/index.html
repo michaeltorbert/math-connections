@@ -14,8 +14,8 @@
 
 :root{
   --ink:#10233f; --ink-soft:#4b647f;
-  --page:#aee8f2;
-  --panel:#ffffff;
+  --page:#f3f6f0;
+  --panel:#fffefa;
   --line:#d8e2ee;
   --blue:#1268e3; --blue-d:#0f4fae;
   --green:#159c6e; --green-d:#08794e;
@@ -31,7 +31,7 @@
 html,body{height:100%;color:var(--ink);
   font-family:Arial,"Helvetica Neue",Helvetica,sans-serif}
 body{min-height:100dvh;display:flex;align-items:flex-start;justify-content:center;
-  background:var(--page);padding:18px;-webkit-user-select:none;user-select:none}
+  background:linear-gradient(180deg,#f7f8f2 0%,var(--page) 100%);padding:18px;-webkit-user-select:none;user-select:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 button:disabled{cursor:default}
 
@@ -144,10 +144,14 @@ button:disabled{cursor:default}
 /* dashboard */
 .dash h2{font-size:clamp(20px,4.6vw,26px);color:var(--blue-d);margin-bottom:4px}
 .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
-.stat{background:#f8fafc;border-radius:16px;padding:12px;text-align:center;border:2px solid #eef2f7}
+.stat{background:#f8fafc;border-radius:8px;padding:12px;text-align:center;border:1px solid #e6edf5}
 .stat .n{font-size:clamp(22px,5vw,30px);font-weight:900;color:var(--blue-d)}
 .stat .l{font-size:13px;font-weight:700;color:var(--ink-soft)}
-.reco{background:#ecfeff;border:3px solid #a5f3fc;border-radius:18px;padding:14px;margin:10px 0;font-weight:800;color:#0e7490}
+.reco{background:#f7fbff;border-left:5px solid var(--green);border-radius:8px;padding:14px;margin:10px 0;font-weight:700;color:#17395f}
+.reco b{display:block;color:var(--green-d);font-size:13px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{display:inline-flex;align-items:center;border-radius:6px;background:#eef6ff;color:#123c69;
+  border:1px solid #d6e7f8;padding:4px 8px;font-size:12px;font-weight:700}
 .section-title{font-weight:900;color:var(--ink);margin:16px 0 8px;font-size:clamp(16px,3.6vw,19px)}
 table.facts{width:100%;border-collapse:collapse;font-size:14px}
 table.facts th,table.facts td{padding:7px 8px;text-align:left;border-bottom:1px solid #eef2f7}
@@ -156,7 +160,7 @@ table.facts th{color:var(--ink-soft);font-size:12px;text-transform:uppercase;let
 .b1{background:#ef4444}.b2{background:#f97316}.b3{background:#eab308;color:#3b2300}.b4{background:#22c55e}.b5{background:#0f766e}
 .b0{background:#94a3b8}
 .transfer{display:flex;gap:6px;flex-wrap:wrap}
-.tcell{font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px 8px}
+.tcell{font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px}
 .tcell b{color:var(--ink)}
 textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid #cbd5e1;padding:10px;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;resize:vertical}
@@ -191,7 +195,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -248,6 +252,34 @@ const STRATEGIES = [
   { tag: "fingers",    ic: "✋", label: "Fingers" },
   { tag: "guessed",    ic: "❓", label: "Guessed" },
 ];
+
+const FOCUS_DEFS = Object.freeze({
+  additionRecall: {
+    label: "addition fact recall",
+    plan: "Practice addition rows first, then connect them to the family.",
+    multipliers: { ADD: 4, SUB1: 1.1, SUB2: 1.1, CONNECT: 1.6 },
+  },
+  subtractionRecall: {
+    label: "subtraction fact recall",
+    plan: "Practice taking away before asking for the matching addition.",
+    multipliers: { ADD: 1.8, SUB1: 3.4, SUB2: 3.4, CONNECT: 1.6 },
+  },
+  addToSubTransfer: {
+    label: "turn addition into subtraction",
+    plan: "Use one addition fact to write the matching take-away facts.",
+    multipliers: { ADD: 4.2, SUB1: .8, SUB2: .8, CONNECT: 3.2 },
+  },
+  subToAddTransfer: {
+    label: "turn subtraction into addition",
+    plan: "Solve a take-away fact, then rebuild the matching addition.",
+    multipliers: { ADD: 1, SUB1: 4, SUB2: 4, CONNECT: 1.1 },
+  },
+  pictureToEquation: {
+    label: "turn pictures into equations",
+    plan: "Start from a small picture and write the equations it shows.",
+    multipliers: { ADD: 1.2, SUB1: .8, SUB2: .8, CONNECT: 5 },
+  },
+});
 
 /* =========================================================================
    2. SMALL HELPERS
@@ -350,10 +382,29 @@ function makeFamily(a, b){
   const lo = Math.min(a, b), hi = Math.max(a, b);
   return { a: lo, b: hi, whole: lo + hi, id: canonFamilyId(lo, hi) };
 }
+function familyFromId(id){
+  const m = String(id || "").match(/^(\d+)\+(\d+)=(\d+)$/);
+  if (!m) return null;
+  const fam = makeFamily(Number(m[1]), Number(m[2]));
+  return fam.whole === Number(m[3]) ? fam : null;
+}
+function familyIdForFact(fact){
+  const s = String(fact || "").replace(/\s/g, "");
+  let m = s.match(/^(\d+)\+(\d+)$/);
+  if (m) return canonFamilyId(Number(m[1]), Number(m[2]));
+  m = s.match(/^(\d+)-(\d+)$/);
+  if (!m) return null;
+  const whole = Number(m[1]), part = Number(m[2]), other = whole - part;
+  return other >= 1 ? canonFamilyId(part, other) : null;
+}
 // The (up to) three distinct facts in a family.
 function factsOfFamily(fam){
   const facts = [ `${fam.a}+${fam.b}`, `${fam.whole}-${fam.a}`, `${fam.whole}-${fam.b}` ];
   return [...new Set(facts)];
+}
+function factsOfFamilyId(id){
+  const fam = familyFromId(id);
+  return fam ? factsOfFamily(fam) : [];
 }
 function relevantFact(type, fam){
   switch(type){
@@ -405,13 +456,15 @@ function factMasteryUpdate(fact, correctFirstTry){
 
 // Pick a family (for a given problem type) weighted by how much its key fact
 // needs practice. Honors config emphasis/avoid + an anti-repeat guard.
-function selectWeightedFamily(pool, type, cfg){
+function selectWeightedFamily(pool, type, cfg, focus){
   let candidates = pool.filter(f => !cfg.avoidFamilies.includes(f.id));
   if (!candidates.length){
     toast("Config avoids every family in range — using the full set.", true);
     candidates = pool.slice();
   }
   const recent = new Set(state.recentMisses);
+  const targetFamilies = new Set((focus && focus.targetFamilies) || []);
+  const targetFacts = new Set((focus && focus.targetFacts) || []);
   const weights = candidates.map(fam => {
     const fact = relevantFact(type, fam);
     const m = state.mastery[fact];
@@ -420,6 +473,9 @@ function selectWeightedFamily(pool, type, cfg){
     if (!m) w *= 1.25;                                  // mild novelty bonus
     if (cfg.emphasizeFamilies.includes(fam.id)) w *= 3;
     if (cfg.emphasizeFacts.includes(fact)) w *= 3;
+    if (targetFamilies.has(fam.id)) w *= 4;
+    if (targetFacts.has(fact)) w *= 3;
+    if (factsOfFamily(fam).some(f => targetFacts.has(f))) w *= 2;
     if (state.lastKey === fam.id + "|" + type) w *= 0.15;  // avoid identical repeat
     return Math.max(0.001, w);
   });
@@ -435,6 +491,232 @@ function weightedType(mix){
   let r = Math.random() * total;
   for (const [t, w] of entries){ r -= w; if (r <= 0) return t; }
   return "ADD";
+}
+
+function focusedTypeMix(mix, focus){
+  if (!focus || !focus.multipliers) return mix;
+  const out = {};
+  for (const t of PROBLEM_TYPES){
+    const base = Math.max(0, Number(mix[t]) || 0);
+    out[t] = base * (focus.multipliers[t] == null ? 1 : focus.multipliers[t]);
+  }
+  return out;
+}
+
+function focusDef(id){ return FOCUS_DEFS[id] || FOCUS_DEFS.addToSubTransfer; }
+
+function answerEntries(record){
+  if (Array.isArray(record.answers) && record.answers.length){
+    return record.answers.map(a => ({
+      id: a.id || "answer",
+      fact: a.fact || record.fact,
+      operation: a.operation || record.operation,
+      correctAnswer: a.correctAnswer,
+      childAnswer: a.childAnswer == null ? null : a.childAnswer,
+      finalAnswer: a.finalAnswer == null ? null : a.finalAnswer,
+      correctFirstTry: Boolean(a.correctFirstTry),
+    }));
+  }
+  return [{
+    id: "answer",
+    fact: record.fact,
+    operation: record.operation,
+    correctAnswer: record.correctAnswer,
+    childAnswer: record.childAnswer == null ? null : record.childAnswer,
+    finalAnswer: record.childAnswer == null ? null : record.childAnswer,
+    correctFirstTry: Boolean(record.correctFirstTry),
+  }];
+}
+
+function signalWeight(record){
+  const attempts = Math.max(1, Number(record.attempts) || 1);
+  let weight = 1 + Math.min(1.2, (attempts - 1) * 0.35);
+  if (record.hintUsed) weight += 0.25;
+  if (record.morphViewed) weight += 0.15;
+  if (record.strategyTag === "guessed") weight += 0.35;
+  return weight;
+}
+
+function classifyDeficitSignals(record){
+  if (!record || record.correctFirstTry) return [];
+  const answers = answerEntries(record);
+  const missed = answers.filter(a => !a.correctFirstTry);
+  if (!missed.length) return [];
+  const signals = [];
+  const weight = signalWeight(record);
+  const fam = record.factFamilyId || familyIdForFact(record.fact);
+  const addMisses = missed.filter(a => a.operation === "addition");
+  const subMisses = missed.filter(a => a.operation === "subtraction");
+  const sum = answers.find(a => a.id === "sum");
+  const subAnswer = answers.find(a => /^sub/.test(a.id));
+  const addAnswer = answers.find(a => /^add/.test(a.id));
+  const picAdd = answers.find(a => /^picAdd/.test(a.id));
+
+  function push(id, facts, reason, extraWeight){
+    signals.push({
+      id,
+      facts: [...new Set((facts || []).filter(Boolean))],
+      family: fam,
+      reason,
+      weight: weight + (extraWeight || 0),
+    });
+  }
+
+  if (record.problemType === "ADD"){
+    if (sum && !sum.correctFirstTry) push("additionRecall", [sum.fact], "missed the addition row");
+    if (subMisses.length){
+      push(sum && sum.correctFirstTry ? "addToSubTransfer" : "subtractionRecall",
+        subMisses.map(a => a.fact),
+        sum && sum.correctFirstTry ? "addition was right but matching subtraction was missed" : "matching subtraction rows were missed");
+    }
+  } else if (record.problemType === "SUB1" || record.problemType === "SUB2"){
+    if (subAnswer && !subAnswer.correctFirstTry) push("subtractionRecall", [subAnswer.fact], "missed the take-away fact");
+    if (addAnswer && !addAnswer.correctFirstTry){
+      push(subAnswer && subAnswer.correctFirstTry ? "subToAddTransfer" : "additionRecall",
+        [addAnswer.fact],
+        subAnswer && subAnswer.correctFirstTry ? "take-away was right but matching addition was missed" : "matching addition was missed");
+    }
+  } else if (record.problemType === "CONNECT"){
+    if (picAdd && !picAdd.correctFirstTry) push("pictureToEquation", [picAdd.fact], "picture did not turn into the addition equation");
+    if (subMisses.length){
+      push(picAdd && picAdd.correctFirstTry ? "addToSubTransfer" : "subtractionRecall",
+        subMisses.map(a => a.fact),
+        picAdd && picAdd.correctFirstTry ? "picture addition was right but subtraction was missed" : "picture subtraction was missed");
+    }
+  }
+
+  if (!signals.length){
+    const op = missed[0].operation === "subtraction" ? "subtractionRecall" : "additionRecall";
+    push(op, missed.map(a => a.fact), "missed the first answer");
+  }
+  return signals;
+}
+
+function addCounter(map, key, amount){
+  if (!key) return;
+  map[key] = (map[key] || 0) + (amount || 1);
+}
+
+function addRatioStat(map, key, correct){
+  if (!key) return;
+  const stat = map[key] || (map[key] = { seen: 0, correct: 0, misses: 0 });
+  stat.seen++;
+  if (correct) stat.correct++;
+  else stat.misses++;
+}
+
+function buildDeficitProfile(records){
+  const recent = (records || []).filter(r => r && r.mode === "factFamily").slice(-60);
+  const profile = {
+    total: recent.length,
+    focus: {},
+    factStats: {},
+    familyStats: {},
+  };
+
+  function focusBucket(id){
+    const def = focusDef(id);
+    return profile.focus[id] || (profile.focus[id] = {
+      id,
+      label: def.label,
+      score: 0,
+      misses: 0,
+      facts: {},
+      families: {},
+      examples: [],
+    });
+  }
+  function addSignal(sig){
+    const b = focusBucket(sig.id);
+    b.score += sig.weight || 1;
+    b.misses++;
+    addCounter(b.families, sig.family, sig.weight || 1);
+    for (const f of sig.facts || []) addCounter(b.facts, f, sig.weight || 1);
+    if (sig.reason && b.examples.length < 2) b.examples.push(sig.reason);
+  }
+
+  for (const r of recent){
+    const famId = r.factFamilyId || familyIdForFact(r.fact);
+    const fam = profile.familyStats[famId] || (profile.familyStats[famId] = { add: { seen:0, correct:0 }, sub: { seen:0, correct:0 } });
+    for (const a of answerEntries(r)){
+      addRatioStat(profile.factStats, a.fact, a.correctFirstTry);
+      const slot = a.operation === "subtraction" ? fam.sub : fam.add;
+      slot.seen++;
+      if (a.correctFirstTry) slot.correct++;
+    }
+    for (const sig of classifyDeficitSignals(r)) addSignal(sig);
+  }
+
+  for (const [famId, stat] of Object.entries(profile.familyStats)){
+    if (!famId) continue;
+    const addSeen = stat.add.seen, subSeen = stat.sub.seen;
+    const addAcc = addSeen ? stat.add.correct / addSeen : null;
+    const subAcc = subSeen ? stat.sub.correct / subSeen : null;
+    if (addSeen >= 2 && subSeen >= 2 && addAcc >= .7 && subAcc <= .6){
+      addSignal({
+        id: "addToSubTransfer",
+        family: famId,
+        facts: factsOfFamilyId(famId).filter(f => f.includes("-")),
+        weight: 1.4 + (addAcc - subAcc),
+        reason: "addition is stronger than subtraction in the same family",
+      });
+    }
+  }
+  return profile;
+}
+
+function rankedKeys(map, limit){
+  return Object.entries(map || {})
+    .sort((a,b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([k]) => k);
+}
+
+function weakFactFallback(profile){
+  const facts = Object.entries(profile.factStats)
+    .filter(([,m]) => m.seen >= 1 && m.misses > 0)
+    .sort((a,b) => (b[1].misses / Math.max(1,b[1].seen)) - (a[1].misses / Math.max(1,a[1].seen)));
+  if (!facts.length) return null;
+  const fact = facts[0][0];
+  const id = fact.includes("-") ? "subtractionRecall" : "additionRecall";
+  return {
+    id,
+    score: facts[0][1].misses || 1,
+    targetFacts: [fact],
+    targetFamilies: [familyIdForFact(fact)].filter(Boolean),
+    reason: `${fact} has the lowest first-try accuracy so far.`,
+  };
+}
+
+function derivePracticeFocus(records){
+  const profile = buildDeficitProfile(records || state.problemLog);
+  if (profile.total < 4){
+    const def = focusDef("addToSubTransfer");
+    return Object.assign({ id: "addToSubTransfer", targetFacts: [], targetFamilies: [],
+      reason: "Not enough data yet, so the session starts with the core addition-subtraction connection.",
+      score: 0, samples: profile.total }, def);
+  }
+  const scored = Object.values(profile.focus).filter(f => f.score > 0)
+    .sort((a,b) => b.score - a.score);
+  const picked = scored[0] || weakFactFallback(profile);
+  if (!picked){
+    const def = focusDef("addToSubTransfer");
+    return Object.assign({ id: "addToSubTransfer", targetFacts: [], targetFamilies: [],
+      reason: "No clear weak spot yet, so the app keeps rotating through the connection.",
+      score: 0, samples: profile.total }, def);
+  }
+  const def = focusDef(picked.id);
+  const targetFacts = picked.targetFacts || rankedKeys(picked.facts, 4);
+  const targetFamilies = picked.targetFamilies || rankedKeys(picked.families, 4);
+  const example = picked.examples && picked.examples[0] ? picked.examples[0] : def.plan;
+  return Object.assign({
+    id: picked.id,
+    targetFacts,
+    targetFamilies,
+    reason: `${cap(example)}.`,
+    score: picked.score,
+    samples: profile.total,
+  }, def);
 }
 
 /* =========================================================================
@@ -599,8 +881,9 @@ function equationText(field){
 function generateFactFamilyProblem(){
   const cfg = state.config;
   const pool = familiesInRange(cfg);
-  const type = weightedType(cfg.problemTypeMix);
-  const fam = selectWeightedFamily(pool, type, cfg);
+  const focus = derivePracticeFocus();
+  const type = weightedType(focusedTypeMix(cfg.problemTypeMix, focus));
+  const fam = selectWeightedFamily(pool, type, cfg, focus);
   const fact = relevantFact(type, fam);
   const story = buildStory(type, fam, fam.a, true);
   let prompt, givenEquation = "", fields = [], visual = false, operation = "addition";
@@ -615,15 +898,15 @@ function generateFactFamilyProblem(){
   } else if (type === "SUB1"){
     operation = "subtraction";
     prompt = "Solve the subtraction. Then write an addition to match the subtraction.";
-    givenEquation = `${fam.whole} − ${fam.a} = ${fam.b}`;
     fields = [
+      makeField("subA", `${fam.whole} − ${fam.a} =`, fam.b, "", `${fam.whole}-${fam.a}`, "subtraction"),
       makeField("addA", `${fam.a} +`, fam.b, `= ${fam.whole}`, `${fam.a}+${fam.b}`, "addition"),
     ];
   } else if (type === "SUB2"){
     operation = "subtraction";
     prompt = "Solve the subtraction. Then write an addition to match the subtraction.";
-    givenEquation = `${fam.whole} − ${fam.b} = ${fam.a}`;
     fields = [
+      makeField("subB", `${fam.whole} − ${fam.b} =`, fam.a, "", `${fam.whole}-${fam.b}`, "subtraction"),
       makeField("addB", `${fam.b} +`, fam.a, `= ${fam.whole}`, `${fam.a}+${fam.b}`, "addition"),
     ];
   } else {
@@ -657,6 +940,10 @@ function generateFactFamilyProblem(){
     correctAnswer: primary.expected,
     range: clamp(cfg.numberRange.max, 5, 20),
     configId: cfg.configId || null,
+    focusId: focus.id,
+    focusLabel: focus.label,
+    focusReason: focus.reason,
+    focusTargets: { facts: focus.targetFacts, families: focus.targetFamilies },
   };
 }
 
@@ -807,7 +1094,17 @@ function recordProblemAndAdvance(){
     timeSpentMs: Date.now() - v.startedAt,
     range: p.range,
     configId: p.configId,
+    focusId: p.focusId,
+    focusLabel: p.focusLabel,
+    focusReason: p.focusReason,
+    focusTargets: p.focusTargets,
   };
+  record.deficitSignals = classifyDeficitSignals(record).map(sig => ({
+    id: sig.id,
+    family: sig.family,
+    facts: sig.facts,
+    reason: sig.reason,
+  }));
   state.problemLog.push(record);
   for (const result of firstResults){
     factMasteryUpdate(result.fact, Boolean(result.isCorrect));
@@ -1126,6 +1423,7 @@ function renderParent(){
 
   const log = state.problemLog;
   const ff = log.filter(r => r.mode === "factFamily");
+  const focus = derivePracticeFocus(ff);
   const firstTry = ff.filter(r => r.correctFirstTry).length;
   const pct = ff.length ? Math.round(100 * firstTry / ff.length) : 0;
 
@@ -1136,10 +1434,7 @@ function renderParent(){
   stats.appendChild(stat(masteredCount(), "facts mastered"));
   card.appendChild(stats);
 
-  // recommendation
-  const reco = el("div", "reco");
-  reco.textContent = generateRecommendation();
-  card.appendChild(reco);
+  card.appendChild(renderFocusSummary(focus));
 
   // add vs sub transfer
   card.appendChild(el("div", "section-title", "Add ↔ Subtract (does it transfer?)"));
@@ -1183,15 +1478,36 @@ function renderParent(){
 }
 function stat(n, l){ const d = el("div","stat"); d.appendChild(el("div","n",String(n))); d.appendChild(el("div","l",l)); return d; }
 
+function renderFocusSummary(focus){
+  const box = el("div", "reco");
+  box.appendChild(el("b", null, "Current focus"));
+  box.appendChild(el("div", null, `${cap(focus.label)}. ${focus.reason}`));
+  const plan = el("div", "muted", focus.plan);
+  plan.style.cssText = "margin-top:6px;font-size:13px;font-weight:700";
+  box.appendChild(plan);
+  const chips = el("div", "chips");
+  for (const family of (focus.targetFamilies || []).slice(0, 4)){
+    chips.appendChild(el("span", "chip", family));
+  }
+  for (const fact of (focus.targetFacts || []).slice(0, 4)){
+    chips.appendChild(el("span", "chip", fact));
+  }
+  if (chips.children.length) box.appendChild(chips);
+  return box;
+}
+
 function masteredCount(){ return Object.values(state.mastery).filter(m => m.box >= 4).length; }
 
 function renderTransfer(ff){
-  // For each family the child has attempted, compare ADD accuracy vs SUB accuracy.
+  // For each family, compare answer-row accuracy for addition vs subtraction.
   const byFam = {};
   for (const r of ff){
     const f = byFam[r.factFamilyId] || (byFam[r.factFamilyId] = { add:[0,0], sub:[0,0] });
-    const slot = r.operation === "addition" ? f.add : f.sub;
-    slot[1]++; if (r.correctFirstTry) slot[0]++;
+    for (const a of answerEntries(r)){
+      const slot = a.operation === "subtraction" ? f.sub : f.add;
+      slot[1]++;
+      if (a.correctFirstTry) slot[0]++;
+    }
   }
   const wrap = el("div", "transfer");
   const fams = Object.keys(byFam).sort();
@@ -1285,16 +1601,10 @@ function showErrors(box, errors){
    11. RECOMMENDATION (built-in adaptivity surfaced for the dad)
    ========================================================================= */
 function generateRecommendation(){
-  const facts = Object.entries(state.mastery);
-  if (facts.length < 3) return "Play a few sessions and a focus suggestion will appear here.";
-  // lowest boxes first; tie-break by worst accuracy
-  facts.sort((a,b) => (a[1].box - b[1].box) ||
-    ((a[1].correct/Math.max(1,a[1].attempts)) - (b[1].correct/Math.max(1,b[1].attempts))));
-  const weak = facts.filter(([f,m]) => m.box <= 2).slice(0, 3).map(([f]) => f);
-  if (!weak.length) return "Looking strong! Try bumping the level up (Within 10 → Within 20).";
-  const subWeak = weak.filter(f => f.includes("-")).length;
-  const tail = subWeak >= 2 ? `${CHILD_NAME} may be stronger at adding than taking away — use “Show the connection.”` : "";
-  return `Focus next: ${weak.join(", ")}. ${tail}`;
+  const focus = derivePracticeFocus();
+  const targets = [...(focus.targetFamilies || []), ...(focus.targetFacts || [])].slice(0, 4);
+  const targetText = targets.length ? ` Targets: ${targets.join(", ")}.` : "";
+  return `Current focus: ${focus.label}. ${focus.reason}${targetText}`;
 }
 
 /* =========================================================================
@@ -1340,15 +1650,18 @@ The DATA below is JSON exported from his practice app.
 
 Each problem record has: problemType (ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"),
 fact (e.g. "8-3"), operation, correctAnswer, childAnswer, errorValue (childAnswer - correctAnswer),
-attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs.
+answers[] (one row per equation blank), attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs,
+focusId/focusReason (why the app chose that practice), and deficitSignals[] (what kind of miss it saw).
 
 Please find:
 1. Which specific FACTS and FACT FAMILIES are weak (low correctFirstTry, many attempts, repeated
    errorValue patterns such as off-by-one (+/-1) or reversals).
-2. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
-   accuracy on ADD vs SUB1/SUB2/CONNECT. Is subtraction lagging behind addition?
-3. Error patterns clustered by errorValue and problemType.
-4. A recommended next focus (2-4 families or facts), with brief reasoning.
+2. What KIND of weakness is showing up: addition fact recall, subtraction fact recall,
+   addition->subtraction transfer, subtraction->addition transfer, or picture->equation mapping.
+3. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+   answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
+4. Error patterns clustered by errorValue, answers[].operation, and problemType.
+5. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
 PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
@@ -1414,6 +1727,7 @@ function runSelfTests(){
   // canonical family id
   ok(canonFamilyId(5,3) === canonFamilyId(3,5), "canonFamilyId order-independent");
   ok(canonFamilyId(3,5) === "3+5=8", "canonFamilyId format");
+  ok(familyIdForFact("8-3") === "3+5=8" && familyIdForFact("5+3") === "3+5=8", "familyIdForFact maps both operations");
 
   // family generation in range
   const fams = familiesInRange({ numberRange: { max: 10 } });
@@ -1434,6 +1748,28 @@ function runSelfTests(){
   // validateConfig: example ok
   const ex = validateConfig({ numberRange:{max:10}, sessionLength:6, emphasizeFacts:["10-7"], problemTypeMix:{ADD:1,SUB1:1,SUB2:1,CONNECT:1} });
   ok(ex.ok && ex.config.sessionLength === 6 && Math.abs(Object.values(ex.config.problemTypeMix).reduce((a,b)=>a+b,0) - 1) < 1e-9, "validateConfig normalizes mix");
+
+  // SUB problems require both solving the subtraction and matching the addition.
+  const subCfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  subCfg.problemTypeMix = { ADD:0, SUB1:1, SUB2:0, CONNECT:0 };
+  state.config = subCfg;
+  const subProblem = generateFactFamilyProblem();
+  ok(subProblem.problemType === "SUB1" && subProblem.fields.some(f => f.operation === "subtraction") &&
+    subProblem.fields.some(f => f.operation === "addition"), "SUB problem includes subtraction and matching addition blanks");
+  state.config = savedCfg;
+
+  // Deficit classifier finds the gap type, not just the weak number.
+  const transferMiss = {
+    mode:"factFamily", problemType:"ADD", factFamilyId:"3+5=8", correctFirstTry:false, attempts:1,
+    answers:[
+      { id:"sum", fact:"3+5", operation:"addition", correctAnswer:8, childAnswer:8, correctFirstTry:true },
+      { id:"subA", fact:"8-3", operation:"subtraction", correctAnswer:5, childAnswer:4, correctFirstTry:false },
+    ],
+  };
+  const signals = classifyDeficitSignals(transferMiss).map(s => s.id);
+  ok(signals.includes("addToSubTransfer"), "classifies addition-to-subtraction transfer miss");
+  const focus = derivePracticeFocus([transferMiss, transferMiss, transferMiss, transferMiss]);
+  ok(focus.id === "addToSubTransfer" && focus.targetFamilies.includes("3+5=8"), "practice focus targets transfer gap family");
 
   // validateConfig: junk never throws, clamps
   const junk = [null, "{", "[]", 42, {numberRange:{max:9999}}, {sessionLength:-5}, {emphasizeFacts:"nope"}, {emphasizeFamilies:["bad","2+3=5"]}, {ttsRate:99}];

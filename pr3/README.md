@@ -28,7 +28,7 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
    more equation blanks. They type the missing numbers and tap **✓ Check**.
 4. Four kinds of problems, all in the same family:
    - **ADD** — solve the addition, then write the two matching subtraction equations.
-   - **SUB1 / SUB2** — use a solved subtraction to write the matching addition.
+   - **SUB1 / SUB2** — solve the subtraction, then write the matching addition.
    - **CONNECT** — use a small picture to write an addition and a matching subtraction.
 5. A quick, skippable "How did you figure it out?" tap helps record whether they *knew it*,
    *counted*, *used adding*, or *guessed*.
@@ -76,9 +76,18 @@ strictly validated and clamped, so a malformed or oversized config can never bre
 ## Built-in adaptivity (works even without the AI loop)
 
 Each fact has a Leitner-style "box" (1–5). Facts the child misses are demoted and shown more
-often; facts answered correctly several times in a row are promoted and shown less. Problem
-selection is weighted toward the weak and recently-missed facts, so practice naturally
-concentrates where it's needed. The dashboard's **Focus suggestion** surfaces this.
+often; facts answered correctly several times in a row are promoted and shown less.
+
+The app now also classifies the **kind** of miss before choosing the next problems:
+
+- addition fact recall
+- subtraction fact recall
+- addition → subtraction transfer
+- subtraction → addition transfer
+- picture → equation mapping
+
+Problem type and family selection are biased toward that current focus. The dashboard shows
+the focus, why it was picked, and which facts/families are being targeted.
 
 ## Privacy
 
