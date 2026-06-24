@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="Math Connections — a friendly addition/subtraction fact-family game for young children.">
+<title>Math Connections</title>
+<style>
+/* =========================================================================
+   Math Connections — single-file kids' math app (add <-> subtract fact families)
+   Plain HTML/CSS/vanilla JS. No build step. Works offline (double-click) and
+   on GitHub Pages. Tuned for a 6-year-old on a tablet or laptop.
+   ========================================================================= */
+
+:root{
+  --ink:#1e3a5f; --ink-soft:#475569;
+  --sky1:#7ec8e3; --sky2:#cfeefb;
+  --card:#ffffff;
+  --blue:#3b82f6; --blue-d:#1d4ed8;
+  --green:#22c55e; --green-d:#15803d;
+  --purple:#a855f7; --purple-d:#7c3aed;
+  --orange:#f97316; --orange-d:#c2410c;
+  --pink:#ec4899; --pink-d:#be185d;
+  --amber:#f59e0b;
+  --red:#ef4444; --red-d:#b91c1c;
+  --teal:#14b8a6; --teal-d:#0f766e;
+  --yellow:#eab308; --yellow-d:#a16207;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;color:var(--ink);
+  font-family:"Avenir Next","Nunito",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100dvh;display:flex;align-items:flex-start;justify-content:center;
+  background:linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 55%,#dff1c2 75%,#a4d96f 100%);
+  background-attachment:fixed;padding:16px;-webkit-user-select:none;user-select:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:disabled{cursor:default}
+
+#app{width:100%;max-width:920px;margin:0 auto}
+
+/* ---------- generic building blocks ---------- */
+.card{background:var(--card);border-radius:26px;padding:22px;
+  box-shadow:0 6px 0 rgba(0,0,0,0.05),0 12px 28px rgba(0,0,0,0.12);border:4px solid #fff}
+.center{text-align:center}
+.row{display:flex;align-items:center;gap:12px}
+.row.wrap{flex-wrap:wrap}
+.spread{justify-content:space-between}
+.muted{color:var(--ink-soft)}
+.hidden{display:none !important}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  font-weight:900;border-radius:22px;padding:14px 26px;font-size:clamp(18px,3.4vw,24px);
+  color:#fff;background:var(--blue);box-shadow:0 5px 0 rgba(0,0,0,0.18);
+  border:3px solid rgba(255,255,255,0.45);transition:transform .12s,box-shadow .12s;
+  text-shadow:0 2px 0 rgba(0,0,0,0.15)}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,0.18)}
+.btn.green{background:linear-gradient(180deg,#34d399,#10b981 60%,#059669);box-shadow:0 5px 0 #047857}
+.btn.amber{background:linear-gradient(180deg,#fbbf24,#f59e0b 70%);box-shadow:0 5px 0 #b45309;color:#3b2300;text-shadow:none}
+.btn.purple{background:linear-gradient(180deg,#c084fc,#a855f7 70%);box-shadow:0 5px 0 #6d28d9}
+.btn.ghost{background:#eef2ff;color:var(--blue-d);box-shadow:0 4px 0 #c7d2fe;text-shadow:none}
+.btn.big{padding:18px 38px;font-size:clamp(22px,4.6vw,30px);border-radius:30px}
+.btn.sm{padding:9px 16px;font-size:clamp(14px,2.6vw,17px);border-radius:16px;box-shadow:0 3px 0 rgba(0,0,0,0.18)}
+.btn:disabled{filter:grayscale(.5) opacity(.65)}
+
+.linkbtn{background:none;color:var(--blue-d);font-weight:800;text-decoration:underline;
+  font-size:clamp(14px,2.8vw,17px);padding:6px 4px}
+
+/* ---------- header ---------- */
+.appbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:0 6px}
+.brand{font-weight:900;font-size:clamp(22px,5vw,32px);letter-spacing:-.5px;
+  color:var(--blue-d);text-shadow:0 2px 0 rgba(255,255,255,0.6)}
+.brand .x{color:var(--orange)}
+.pill{display:inline-flex;align-items:center;gap:8px;background:#fff;border-radius:18px;
+  padding:8px 14px;font-weight:900;box-shadow:0 3px 0 rgba(0,0,0,0.08);border:2px solid #e0f2fe}
+
+/* ---------- home ---------- */
+.hero{text-align:center;padding:8px 6px 4px}
+.hero .big-emoji{font-size:clamp(48px,16vw,86px);line-height:1}
+.hero h1{font-size:clamp(26px,6vw,40px);font-weight:900;color:var(--blue-d);margin:6px 0 2px}
+.hero p{font-size:clamp(15px,3.6vw,19px);color:var(--ink-soft);font-weight:700}
+.levelpick{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
+.levelbtn{background:#eff6ff;color:var(--blue-d);font-weight:900;border-radius:18px;
+  padding:12px 18px;font-size:clamp(15px,3.4vw,19px);border:3px solid #bfdbfe;box-shadow:0 4px 0 #bfdbfe}
+.levelbtn.on{background:var(--blue);color:#fff;border-color:#fff;box-shadow:0 4px 0 #1d4ed8}
+.levelbtn .sub{display:block;font-size:.72em;font-weight:700;opacity:.85}
+
+/* ---------- play ---------- */
+.story{font-size:clamp(19px,4.4vw,28px);font-weight:900;text-align:center;line-height:1.25;
+  margin:2px 0 8px;min-height:1.2em}
+.story .em{color:var(--orange-d)}
+.progress-dots{display:flex;gap:7px;justify-content:center;margin:2px 0 10px}
+.progress-dots i{width:14px;height:14px;border-radius:50%;background:#cbd5e1;display:inline-block}
+.progress-dots i.done{background:var(--green)}
+.progress-dots i.now{background:var(--amber);transform:scale(1.25)}
+
+/* fact-family triangle */
+.triangle-wrap{display:flex;justify-content:center;margin:4px 0 8px}
+.triangle-wrap svg{width:min(86vw,360px);height:auto}
+.vtx-circle{transition:fill .3s}
+.vtx-text{font-weight:900;font-family:inherit}
+.tri-q{fill:var(--amber)}
+
+/* studs (counters) — adapted from the proven prototype renderer */
+.tray{display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;align-items:flex-end;
+  min-height:70px;margin:6px 0 4px;padding:8px;background:#f8fafc;border-radius:18px;border:2px dashed #e2e8f0}
+.tray.split{gap:8px 10px}
+.tray .gap{flex-basis:100%;height:0}
+.tray .grp{display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;padding:6px 10px;border-radius:14px}
+.tray .grp.a{background:rgba(59,130,246,0.06)}
+.tray .grp.b{background:rgba(34,197,94,0.06)}
+.stud{width:46px;height:42px;position:relative;display:inline-block;transition:transform .3s,opacity .3s}
+.stud .body{position:absolute;left:0;right:0;bottom:0;height:34px;border-radius:50%/20px;
+  background:radial-gradient(ellipse at 30% 30%,var(--cl) 0%,var(--cb) 50%,var(--cd) 100%);
+  box-shadow:inset 0 -4px 6px rgba(0,0,0,0.2),0 3px 0 var(--cdd),0 5px 8px rgba(0,0,0,0.1)}
+.stud .top{position:absolute;left:50%;top:0;transform:translateX(-50%);width:20px;height:20px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,var(--cl) 0%,var(--cb) 60%,var(--cd) 100%);
+  box-shadow:inset 0 -2px 3px rgba(0,0,0,0.2)}
+.stud .glint{position:absolute;left:50%;top:3px;transform:translateX(-30%);width:6px;height:4px;border-radius:50%;background:rgba(255,255,255,0.55)}
+.stud.red{--cl:#fca5a5;--cb:#ef4444;--cd:#b91c1c;--cdd:#7f1d1d}
+.stud.green{--cl:#86efac;--cb:#22c55e;--cd:#15803d;--cdd:#14532d}
+.stud.blue{--cl:#93c5fd;--cb:#3b82f6;--cd:#1d4ed8;--cdd:#1e3a8a}
+.stud.purple{--cl:#d8b4fe;--cb:#a855f7;--cd:#7c3aed;--cdd:#5b21b6}
+.stud.orange{--cl:#fdba74;--cb:#f97316;--cd:#c2410c;--cdd:#7c2d12}
+.stud.pink{--cl:#f9a8d4;--cb:#ec4899;--cd:#be185d;--cdd:#831843}
+.stud.yellow{--cl:#fde68a;--cb:#eab308;--cd:#a16207;--cdd:#713f12}
+.stud.teal{--cl:#5eead4;--cb:#14b8a6;--cd:#0f766e;--cdd:#134e4a}
+.stud.taken{opacity:.32;transform:scale(.86)}
+.stud.taken::after{content:"";position:absolute;left:8%;right:8%;top:48%;height:5px;border-radius:3px;
+  background:#475569;transform:rotate(-12deg)}
+.stud.empty{opacity:.6}
+.stud.empty .body{background:transparent;border:3px dashed #94a3b8;box-shadow:none}
+.stud.empty .top,.stud.empty .glint{display:none}
+.stud.pop{animation:popIn .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes popIn{0%{transform:scale(0)}100%{transform:scale(1)}}
+
+/* answer stepper */
+.answer{display:flex;align-items:center;justify-content:center;gap:14px;margin:8px 0}
+.stepper{width:74px;height:74px;border-radius:50%;background:#eef2ff;color:var(--blue-d);
+  font-size:42px;font-weight:900;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 5px 0 #c7d2fe;line-height:0}
+.stepper:active{transform:translateY(3px);box-shadow:0 2px 0 #c7d2fe}
+.stepper:disabled{filter:grayscale(.6) opacity(.6)}
+.answer-box{min-width:96px;height:84px;border-radius:22px;background:#fff7ed;border:4px solid var(--amber);
+  display:flex;align-items:center;justify-content:center;font-size:54px;font-weight:900;color:var(--orange-d)}
+
+.controls{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+
+/* feedback banner */
+.banner{margin:10px 0 2px;border-radius:18px;padding:12px 16px;font-weight:900;text-align:center;
+  font-size:clamp(16px,3.6vw,21px);animation:popIn .25s ease}
+.banner.correct{background:#dcfce7;color:var(--green-d);border:3px solid #86efac}
+.banner.wrong{background:#fff7ed;color:var(--orange-d);border:3px solid #fed7aa}
+
+/* the connection reveal (morph) */
+.connection{margin-top:10px;padding:14px;border-radius:20px;background:#faf5ff;border:3px solid #e9d5ff}
+.connection .eq{font-size:clamp(22px,5.2vw,34px);font-weight:900;text-align:center;color:#6d28d9;
+  opacity:0;transform:translateY(10px)}
+.connection .eq.show{animation:slideUp .5s forwards}
+.connection .eq .add{color:var(--blue-d)}
+.connection .eq .sub{color:var(--purple-d)}
+@keyframes slideUp{to{opacity:1;transform:none}}
+
+/* strategy overlay */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,0.45);display:flex;align-items:center;
+  justify-content:center;padding:18px;z-index:50}
+.sheet{background:#fff;border-radius:26px;padding:22px;max-width:520px;width:100%;
+  box-shadow:0 16px 50px rgba(0,0,0,0.35);max-height:90dvh;overflow:auto}
+.sheet h3{font-size:clamp(19px,4.4vw,24px);text-align:center;margin-bottom:14px;color:var(--blue-d)}
+.stratgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stratbtn{background:#f1f5f9;border-radius:16px;padding:12px 6px;font-weight:800;font-size:14px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;border:2px solid #e2e8f0}
+.stratbtn:active{transform:scale(.96)}
+.stratbtn .ic{font-size:26px}
+
+/* dashboard */
+.dash h2{font-size:clamp(20px,4.6vw,26px);color:var(--blue-d);margin-bottom:4px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
+.stat{background:#f8fafc;border-radius:16px;padding:12px;text-align:center;border:2px solid #eef2f7}
+.stat .n{font-size:clamp(22px,5vw,30px);font-weight:900;color:var(--blue-d)}
+.stat .l{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.reco{background:#ecfeff;border:3px solid #a5f3fc;border-radius:18px;padding:14px;margin:10px 0;font-weight:800;color:#0e7490}
+.section-title{font-weight:900;color:var(--ink);margin:16px 0 8px;font-size:clamp(16px,3.6vw,19px)}
+table.facts{width:100%;border-collapse:collapse;font-size:14px}
+table.facts th,table.facts td{padding:7px 8px;text-align:left;border-bottom:1px solid #eef2f7}
+table.facts th{color:var(--ink-soft);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+.box-chip{display:inline-block;min-width:24px;text-align:center;border-radius:8px;padding:2px 6px;color:#fff;font-weight:900}
+.b1{background:#ef4444}.b2{background:#f97316}.b3{background:#eab308;color:#3b2300}.b4{background:#22c55e}.b5{background:#0f766e}
+.b0{background:#94a3b8}
+.transfer{display:flex;gap:6px;flex-wrap:wrap}
+.tcell{font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px 8px}
+.tcell b{color:var(--ink)}
+textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid #cbd5e1;padding:10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;resize:vertical}
+.errlist{color:var(--red-d);font-size:13px;font-weight:700;margin-top:6px}
+.scroll-x{overflow-x:auto}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(120%);
+  background:#1e293b;color:#fff;font-weight:800;padding:12px 20px;border-radius:16px;z-index:80;
+  box-shadow:0 10px 30px rgba(0,0,0,0.3);max-width:90vw;text-align:center;transition:transform .35s}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.bad{background:#7f1d1d}
+
+@media (max-width:430px){
+  .stratgrid{grid-template-columns:repeat(2,1fr)}
+  .stepper{width:64px;height:64px;font-size:36px}
+  .answer-box{height:74px;font-size:46px;min-width:84px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   1. CONSTANTS
+   ========================================================================= */
+const APP_VERSION = "1.0.0";
+const SCHEMA_VERSION = 1;
+const CHILD_NAME = "James";
+
+const KEYS = {
+  settings:   "mc_settings_v1",
+  problemLog: "mc_problemLog_v1",
+  sessionLog: "mc_sessionLog_v1",
+  config:     "mc_adaptiveConfig_v1",
+  mastery:    "mc_factMastery_v1",
+};
+
+const MODES = ["factFamily"];                 // single, focused activity
+const PROBLEM_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
+
+// Default adaptive config. Everything the AI loop can change lives here.
+const DEFAULT_CONFIG = Object.freeze({
+  schemaVersion: SCHEMA_VERSION,
+  configId: null,
+  createdBy: "default",
+  note: "",
+  numberRange: { min: 0, max: 10 },
+  sessionLength: 6,
+  emphasizeFamilies: [],
+  avoidFamilies: [],
+  emphasizeFacts: [],
+  problemTypeMix: { ADD: 0.30, SUB1: 0.27, SUB2: 0.27, CONNECT: 0.16 },
+  hintBehavior: { autoHintAfterWrong: 1, alwaysOfferMorph: true },
+  mastery: { streakToMaster: 3, demoteOnMiss: true },
+  ttsRate: 0.92,
+});
+
+// Leitner box -> selection weight (lower box = practiced more often).
+const BOX_WEIGHT = { 1: 5, 2: 3, 3: 2, 4: 1, 5: 0.3 };
+const MAX_LOG = 1500;                         // cap stored problems (export-before-prune nudge)
+
+// Real-world story contexts. Colors map to stud classes below.
+const CONTEXTS = [
+  { noun: "apples",   a: "red",    b: "green"  },
+  { noun: "balloons", a: "blue",   b: "orange" },
+  { noun: "fish",     a: "orange", b: "purple" },
+  { noun: "flowers",  a: "pink",   b: "purple" },
+  { noun: "birds",    a: "blue",   b: "yellow" },
+  { noun: "bugs",     a: "red",    b: "teal"   },
+  { noun: "blocks",   a: "green",  b: "blue"   },
+  { noun: "ducks",    a: "yellow", b: "teal"   },
+];
+const STUD_COLORS = ["red","green","blue","purple","orange","pink","yellow","teal"];
+
+const STRATEGIES = [
+  { tag: "memory",     ic: "🧠", label: "Just knew it" },
+  { tag: "counton",    ic: "➕", label: "Counted on" },
+  { tag: "countback",  ic: "➖", label: "Counted back" },
+  { tag: "usedadd",    ic: "🔗", label: "Used adding" },
+  { tag: "fingers",    ic: "✋", label: "Fingers" },
+  { tag: "guessed",    ic: "❓", label: "Guessed" },
+];
+
+/* =========================================================================
+   2. SMALL HELPERS
+   ========================================================================= */
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function rand(a, b){ return Math.floor(Math.random() * (b - a + 1)) + a; }
+function nowIso(){ return new Date().toISOString(); }
+function clamp(n, lo, hi){ n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
+function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function lsGet(key, fallback){
+  try { const raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); }
+  catch(e){ return fallback; }
+}
+function lsSet(key, val){
+  try { localStorage.setItem(key, JSON.stringify(val)); return true; }
+  catch(e){ return false; }   // quota / private mode — degrade gracefully
+}
+
+// Tiny DOM factory.
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+let _toastTimer = null;
+function toast(msg, bad){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.toggle("bad", !!bad); t.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+/* =========================================================================
+   3. TEXT-TO-SPEECH  (voice picker reused from the proven prototype)
+   ========================================================================= */
+let _voiceCache = null;
+function selectBestVoice(){
+  if (_voiceCache) return _voiceCache;
+  if (!("speechSynthesis" in window)) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  if (state.settings.voiceURI){
+    const picked = voices.find(v => v.voiceURI === state.settings.voiceURI);
+    if (picked){ _voiceCache = picked; return picked; }
+  }
+  const enVoices = voices.filter(v => /^en([-_]|$)/i.test(v.lang));
+  if (!enVoices.length) return null;
+  const BAD = /albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|organ|superstar|trinoids|whisper|zarvox|grandma|grandpa|reed|rocko|sandy|shelley|flo|eddy|junior|kathy|fred|ralph|princess|bruce|agnes|vicki|victoria/i;
+  const SIRI = /^siri\b|\bsiri voice\b/i;
+  const PREMIUM = /\(enhanced\)|\(premium\)|\(natural\)|\(neural\)|wavenet|online \(natural\)/i;
+  const GOOD = /samantha|ava|allison|susan|tom|nicky|aaron|joelle|noelle|karen|moira|fiona|tessa|serena|daniel|aria|jenny|jane|nancy|sara|emma|libby|natasha|clara|mia|sonia|amber|michelle/i;
+  const GOOGLE = /google\s+(uk|us)\s+english/i;
+  function score(v){
+    let s = 0; const name = v.name;
+    if (BAD.test(name)) return -1000;
+    if (SIRI.test(name)) s += 350;
+    if (PREMIUM.test(name)) s += 200;
+    if (GOOGLE.test(name)) s += 120;
+    if (/microsoft.*online \(natural\)/i.test(name)) s += 180;
+    if (GOOD.test(name)) s += 60;
+    if (/^en-US/i.test(v.lang)) s += 10;
+    if (/^en-GB/i.test(v.lang)) s += 8;
+    if (v.localService) s += 8;
+    if (/microsoft david|microsoft mark/i.test(name)) s -= 25;
+    return s;
+  }
+  enVoices.sort((a,b) => score(b) - score(a));
+  _voiceCache = enVoices[0];
+  return _voiceCache;
+}
+if ("speechSynthesis" in window){
+  window.speechSynthesis.onvoiceschanged = () => { _voiceCache = null; selectBestVoice(); };
+}
+function speak(text){
+  if (!state.settings.speech) return;
+  if (!("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = selectBestVoice();
+    if (v){ u.voice = v; u.lang = v.lang; }
+    u.rate = clamp(state.config.ttsRate, 0.6, 1.4);
+    u.pitch = 1.1; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  } catch(e){}
+}
+
+/* =========================================================================
+   4. FACT-FAMILY MATH
+   A family = {a, b, whole} with a <= b and a + b = whole, both parts >= 1.
+   ========================================================================= */
+function canonFamilyId(a, b){
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  return `${lo}+${hi}=${lo + hi}`;
+}
+function makeFamily(a, b){
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  return { a: lo, b: hi, whole: lo + hi, id: canonFamilyId(lo, hi) };
+}
+// The (up to) three distinct facts in a family.
+function factsOfFamily(fam){
+  const facts = [ `${fam.a}+${fam.b}`, `${fam.whole}-${fam.a}`, `${fam.whole}-${fam.b}` ];
+  return [...new Set(facts)];
+}
+function relevantFact(type, fam){
+  switch(type){
+    case "ADD":  return `${fam.a}+${fam.b}`;
+    case "SUB1": return `${fam.whole}-${fam.a}`;   // answer = b
+    case "SUB2": return `${fam.whole}-${fam.b}`;   // answer = a
+    case "CONNECT": {
+      // Drill the weaker of the two subtractions, with its addition shown.
+      const f1 = `${fam.whole}-${fam.a}`, f2 = `${fam.whole}-${fam.b}`;
+      return masteryBox(f2) < masteryBox(f1) ? f2 : f1;
+    }
+  }
+  return `${fam.a}+${fam.b}`;
+}
+// All canonical families whose whole fits the active number range.
+function familiesInRange(cfg){
+  const max = clamp(cfg.numberRange.max, 2, 20);
+  const out = [];
+  for (let a = 1; a <= max; a++){
+    for (let b = a; b <= max; b++){
+      if (a + b <= max) out.push(makeFamily(a, b));
+    }
+  }
+  return out;
+}
+
+/* =========================================================================
+   5. MASTERY (Leitner-ish) + WEIGHTED SELECTION
+   ========================================================================= */
+function masteryFor(fact){
+  return state.mastery[fact] || { box: 0, streak: 0, attempts: 0, correct: 0, lastSeen: 0 };
+}
+function masteryBox(fact){ const m = state.mastery[fact]; return m ? m.box : 1; }
+
+function factMasteryUpdate(fact, correctFirstTry){
+  const m = state.mastery[fact] || { box: 1, streak: 0, attempts: 0, correct: 0, lastSeen: 0 };
+  m.attempts++;
+  if (correctFirstTry){
+    m.correct++; m.streak++;
+    if (m.streak >= state.config.mastery.streakToMaster){ m.box = Math.min(5, m.box + 1); m.streak = 0; }
+  } else {
+    m.streak = 0;
+    if (state.config.mastery.demoteOnMiss) m.box = Math.max(1, m.box - 1);
+  }
+  m.lastSeen = Date.now();
+  state.mastery[fact] = m;
+  persistMastery();
+}
+
+// Pick a family (for a given problem type) weighted by how much its key fact
+// needs practice. Honors config emphasis/avoid + an anti-repeat guard.
+function selectWeightedFamily(pool, type, cfg){
+  let candidates = pool.filter(f => !cfg.avoidFamilies.includes(f.id));
+  if (!candidates.length){
+    toast("Config avoids every family in range — using the full set.", true);
+    candidates = pool.slice();
+  }
+  const recent = new Set(state.recentMisses);
+  const weights = candidates.map(fam => {
+    const fact = relevantFact(type, fam);
+    const m = state.mastery[fact];
+    let w = m ? (BOX_WEIGHT[m.box] || 1) : 4.5;        // unseen facts: solid base weight
+    if (recent.has(fact)) w *= 2.5;
+    if (!m) w *= 1.25;                                  // mild novelty bonus
+    if (cfg.emphasizeFamilies.includes(fam.id)) w *= 3;
+    if (cfg.emphasizeFacts.includes(fact)) w *= 3;
+    if (state.lastKey === fam.id + "|" + type) w *= 0.15;  // avoid identical repeat
+    return Math.max(0.001, w);
+  });
+  const total = weights.reduce((s, w) => s + w, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < candidates.length; i++){ r -= weights[i]; if (r <= 0) return candidates[i]; }
+  return candidates[candidates.length - 1];
+}
+
+function weightedType(mix){
+  const entries = PROBLEM_TYPES.map(t => [t, Math.max(0, Number(mix[t]) || 0)]);
+  const total = entries.reduce((s, e) => s + e[1], 0) || 1;
+  let r = Math.random() * total;
+  for (const [t, w] of entries){ r -= w; if (r <= 0) return t; }
+  return "ADD";
+}
+
+/* =========================================================================
+   6. ADAPTIVE CONFIG: validate + apply
+   ========================================================================= */
+const FAMILY_RE = /^\d+\+\d+=\d+$/;
+const FACT_RE   = /^\d+-\d+$|^\d+\+\d+$/;
+
+// Returns { ok, config, errors[] }. NEVER throws. Drops bad bits, clamps the rest.
+function validateConfig(raw){
+  const errors = [];
+  let obj = raw;
+  if (typeof raw === "string"){
+    try { obj = JSON.parse(raw); }
+    catch(e){ return { ok: false, config: null, errors: ["Not valid JSON: " + e.message] }; }
+  }
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)){
+    return { ok: false, config: null, errors: ["Config must be a JSON object."] };
+  }
+  const c = JSON.parse(JSON.stringify(DEFAULT_CONFIG));   // start from defaults
+  c.schemaVersion = SCHEMA_VERSION;
+  if (obj.schemaVersion && obj.schemaVersion !== SCHEMA_VERSION)
+    errors.push(`schemaVersion ${obj.schemaVersion} != app ${SCHEMA_VERSION} (loading anyway).`);
+  if (typeof obj.configId === "string") c.configId = obj.configId.slice(0, 80);
+  if (typeof obj.createdBy === "string") c.createdBy = obj.createdBy.slice(0, 40);
+  if (typeof obj.note === "string") c.note = obj.note.slice(0, 400);
+
+  if (obj.numberRange && typeof obj.numberRange === "object"){
+    c.numberRange.max = clamp(obj.numberRange.max, 5, 20);
+    c.numberRange.min = clamp(obj.numberRange.min != null ? obj.numberRange.min : 0, 0, c.numberRange.max - 1);
+  }
+  if (obj.sessionLength != null) c.sessionLength = Math.round(clamp(obj.sessionLength, 3, 12));
+  if (obj.ttsRate != null) c.ttsRate = clamp(obj.ttsRate, 0.6, 1.4);
+
+  const cleanList = (arr, re, label) => {
+    if (arr == null) return [];
+    if (!Array.isArray(arr)){ errors.push(`${label} should be a list — ignored.`); return []; }
+    const good = [];
+    for (const s of arr){
+      if (typeof s === "string" && re.test(s.replace(/\s/g, ""))) good.push(s.replace(/\s/g, ""));
+      else errors.push(`Dropped malformed ${label} entry: ${JSON.stringify(s)}`);
+    }
+    return good;
+  };
+  c.emphasizeFamilies = cleanList(obj.emphasizeFamilies, FAMILY_RE, "emphasizeFamilies");
+  c.avoidFamilies     = cleanList(obj.avoidFamilies, FAMILY_RE, "avoidFamilies");
+  c.emphasizeFacts    = cleanList(obj.emphasizeFacts, FACT_RE, "emphasizeFacts");
+
+  if (obj.problemTypeMix && typeof obj.problemTypeMix === "object"){
+    const mix = {}; let sum = 0;
+    for (const t of PROBLEM_TYPES){ const v = Math.max(0, Number(obj.problemTypeMix[t]) || 0); mix[t] = v; sum += v; }
+    if (sum > 0){ for (const t of PROBLEM_TYPES) mix[t] = mix[t] / sum; c.problemTypeMix = mix; }
+    else errors.push("problemTypeMix summed to 0 — kept defaults.");
+  }
+  if (obj.hintBehavior && typeof obj.hintBehavior === "object"){
+    if (obj.hintBehavior.autoHintAfterWrong != null)
+      c.hintBehavior.autoHintAfterWrong = Math.round(clamp(obj.hintBehavior.autoHintAfterWrong, 0, 5));
+    c.hintBehavior.alwaysOfferMorph = obj.hintBehavior.alwaysOfferMorph !== false;
+  }
+  if (obj.mastery && typeof obj.mastery === "object"){
+    if (obj.mastery.streakToMaster != null)
+      c.mastery.streakToMaster = Math.round(clamp(obj.mastery.streakToMaster, 1, 8));
+    c.mastery.demoteOnMiss = obj.mastery.demoteOnMiss !== false;
+  }
+  return { ok: true, config: c, errors };
+}
+
+function applyConfig(cfg){
+  state.config = cfg;
+  persistConfig();
+}
+
+/* =========================================================================
+   7. STATE
+   ========================================================================= */
+const _cfg0 = validateConfig(lsGet(KEYS.config, DEFAULT_CONFIG));
+const state = {
+  screen: "home",                               // home | play | summary | parent
+  settings: Object.assign({ speech: true }, lsGet(KEYS.settings, {})),
+  config: _cfg0.ok ? _cfg0.config : JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
+  mastery: lsGet(KEYS.mastery, {}),
+  problemLog: lsGet(KEYS.problemLog, []),
+  sessionLog: lsGet(KEYS.sessionLog, []),
+  session: null,                                // active session
+  problem: null,                               // active problem
+  view: {},                                    // per-problem UI state
+  recentMisses: [],                            // last few missed facts (in-memory)
+  lastKey: null,                               // anti-repeat guard
+  overlay: null,                               // strategy overlay payload
+  pendingStrategyRecord: null,
+};
+
+function persistSettings(){ lsSet(KEYS.settings, state.settings); }
+function persistConfig(){ lsSet(KEYS.config, state.config); }
+function persistMastery(){ lsSet(KEYS.mastery, state.mastery); }
+function persistLogs(){
+  if (state.problemLog.length > MAX_LOG) state.problemLog = state.problemLog.slice(-MAX_LOG);
+  lsSet(KEYS.problemLog, state.problemLog);
+  lsSet(KEYS.sessionLog, state.sessionLog);
+}
+
+/* =========================================================================
+   8. PROBLEM GENERATION
+   ========================================================================= */
+function buildStory(type, fam, knownPart, knownIsA){
+  const ctx = CONTEXTS[rand(0, CONTEXTS.length - 1)];
+  const colA = ctx.a, colB = ctx.b;
+  if (type === "ADD"){
+    return {
+      text: `${fam.a} ${colA} ${ctx.noun} and ${fam.b} ${colB} ${ctx.noun}. How many ${ctx.noun} in all?`,
+      ctx, colA, colB,
+    };
+  }
+  // subtraction framings (SUB1/SUB2/CONNECT): "whole; some are X; how many are Y?"
+  const knownColor = knownIsA ? colA : colB;
+  const otherColor = knownIsA ? colB : colA;
+  return {
+    text: `${fam.whole} ${ctx.noun}. ${knownPart} are ${knownColor}. How many are ${otherColor}?`,
+    ctx, colA, colB, knownColor, otherColor,
+  };
+}
+
+function generateFactFamilyProblem(){
+  const cfg = state.config;
+  const pool = familiesInRange(cfg);
+  const type = weightedType(cfg.problemTypeMix);
+  const fam = selectWeightedFamily(pool, type, cfg);
+  const fact = relevantFact(type, fam);
+
+  let correctAnswer, operation, knownPart, knownIsA, subFromWhole;
+  if (type === "ADD"){
+    correctAnswer = fam.whole; operation = "addition";
+  } else {
+    operation = "subtraction";
+    // fact looks like "whole-x"; the answer is the other part.
+    subFromWhole = Number(fact.split("-")[1]);          // x
+    knownPart = subFromWhole;
+    knownIsA = (subFromWhole === fam.a);
+    correctAnswer = fam.whole - subFromWhole;
+  }
+  const story = buildStory(type, fam, knownPart, knownIsA);
+
+  let problemText = story.text;
+  if (type === "CONNECT"){
+    // Make the connection explicit in the prompt.
+    problemText = `You know ${fam.a} + ${fam.b} = ${fam.whole}.  So ${fam.whole} − ${subFromWhole} = ?`;
+  }
+
+  return {
+    id: uid(),
+    mode: "factFamily",
+    problemType: type,
+    factFamilyId: fam.id,
+    a: fam.a, b: fam.b, whole: fam.whole,
+    fact,
+    factCanonical: operation === "addition"
+      ? `${fam.a}+${fam.b}=${fam.whole}`
+      : `${fact}=${correctAnswer}`,
+    operation,
+    knownPart: type === "ADD" ? null : knownPart,
+    knownIsA: type === "ADD" ? null : knownIsA,
+    story,
+    problemText,
+    correctAnswer,
+    range: clamp(cfg.numberRange.max, 5, 20),
+    configId: cfg.configId || null,
+  };
+}
+
+/* =========================================================================
+   9. SESSION FLOW
+   ========================================================================= */
+function startSession(){
+  state.session = {
+    id: uid(),
+    startedAt: nowIso(),
+    length: state.config.sessionLength,
+    index: 0,                 // 0-based problem number within session
+    results: [],              // booleans (correctFirstTry) for the dots
+  };
+  state.screen = "play";
+  beginNextProblem();
+}
+
+function beginNextProblem(){
+  state.problem = generateFactFamilyProblem();
+  state.lastKey = state.problem.factFamilyId + "|" + state.problem.problemType;
+  state.view = {
+    built: 0,
+    attempts: 0,
+    firstAnswer: null,
+    hintUsed: false,
+    morphViewed: false,
+    showMorph: false,
+    solved: false,
+    feedback: null,
+    startedAt: Date.now(),
+  };
+  render();
+  // Read the problem aloud shortly after paint.
+  setTimeout(() => speak(spokenPrompt(state.problem)), 250);
+}
+
+function spokenPrompt(p){
+  if (p.problemType === "ADD") return `${p.a} and ${p.b}. How many in all?`;
+  if (p.problemType === "CONNECT") return `${p.a} plus ${p.b} makes ${p.whole}. So, ${p.whole} take away ${p.knownPart}?`;
+  return p.story.text;
+}
+
+function checkFactFamily(){
+  const p = state.problem, v = state.view;
+  if (v.solved) return;
+  v.attempts++;
+  if (v.firstAnswer === null) v.firstAnswer = v.built;
+
+  if (v.built === p.correctAnswer){
+    v.solved = true;
+    v.feedback = { kind: "correct", text: pickPraise() };
+    const eq = p.operation === "addition"
+      ? `${p.a} and ${p.b} make ${p.whole}.`
+      : `${p.whole} take away ${p.knownPart} leaves ${p.correctAnswer}.`;
+    speak(`${v.feedback.text} ${eq}`);
+  } else {
+    v.feedback = { kind: "wrong", text: encourage(v.built, p.correctAnswer) };
+    speak(v.feedback.text);
+    if (state.config.hintBehavior.autoHintAfterWrong &&
+        v.attempts >= state.config.hintBehavior.autoHintAfterWrong){
+      v.hintUsed = true;
+    }
+  }
+  render();
+}
+
+function pickPraise(){ return ["Great job!","You got it!","Nice work!","Brilliant!","Way to go!"][rand(0,4)]; }
+function encourage(got, want){
+  if (got < want) return `So close! Try a little more.`;
+  return `Almost! Try a little less.`;
+}
+
+function showHint(){
+  state.view.hintUsed = true;
+  const p = state.problem;
+  let msg;
+  if (p.problemType === "ADD"){
+    msg = `Count them all: start at ${p.a}, then count on ${p.b} more.`;
+  } else {
+    msg = `Use the adding! ${p.knownPart} and how many make ${p.whole}? That's your answer.`;
+  }
+  speak(msg);
+  render();
+}
+
+function doMorph(){
+  state.view.showMorph = true;
+  state.view.morphViewed = true;
+  const p = state.problem;
+  speak(`${p.a} and ${p.b} make ${p.whole}. So, ${p.whole} take away ${p.a} leaves ${p.b}. And ${p.whole} take away ${p.b} leaves ${p.a}.`);
+  render();
+}
+
+// Build the log record, update mastery, advance.
+function recordProblemAndAdvance(){
+  const p = state.problem, v = state.view;
+  const correctFirstTry = v.firstAnswer === p.correctAnswer;
+  const record = {
+    id: p.id,
+    timestamp: nowIso(),
+    sessionId: state.session.id,
+    schemaVersion: SCHEMA_VERSION,
+    mode: "factFamily",
+    problemType: p.problemType,
+    factFamilyId: p.factFamilyId,
+    operands: { a: p.a, b: p.b, whole: p.whole },
+    fact: p.fact,
+    factCanonical: p.factCanonical,
+    operation: p.operation,
+    problemText: p.problemText,
+    correctAnswer: p.correctAnswer,
+    childAnswer: v.firstAnswer,
+    errorValue: (v.firstAnswer == null ? null : v.firstAnswer - p.correctAnswer),
+    attempts: v.attempts,
+    correctFirstTry,
+    strategyTag: v.strategyTag || null,
+    hintUsed: v.hintUsed,
+    morphViewed: v.morphViewed,
+    timeSpentMs: Date.now() - v.startedAt,
+    range: p.range,
+    configId: p.configId,
+  };
+  state.problemLog.push(record);
+  factMasteryUpdate(p.fact, correctFirstTry);
+  // keep a short rolling memory of recent misses for the weighting
+  if (!correctFirstTry){ state.recentMisses.push(p.fact); if (state.recentMisses.length > 6) state.recentMisses.shift(); }
+  state.session.results.push(correctFirstTry);
+  persistLogs();
+
+  state.session.index++;
+  if (state.session.index >= state.session.length){ finishSession(); }
+  else { beginNextProblem(); }
+}
+
+function finishSession(){
+  const s = state.session;
+  s.endedAt = nowIso();
+  s.summary = {
+    total: s.results.length,
+    firstTry: s.results.filter(Boolean).length,
+  };
+  state.sessionLog.push({
+    id: s.id, mode: "factFamily", startedAt: s.startedAt, endedAt: s.endedAt,
+    length: s.length, summary: s.summary,
+  });
+  persistLogs();
+  state.screen = "summary";
+  render();
+}
+
+// Strategy overlay: ask (skippably) how the child solved it, then continue.
+function openStrategy(){
+  state.overlay = { kind: "strategy" };
+  render();
+}
+function chooseStrategy(tag){
+  state.view.strategyTag = tag;
+  state.overlay = null;
+  recordProblemAndAdvance();
+}
+
+/* =========================================================================
+   10. RENDERING
+   ========================================================================= */
+const app = document.getElementById("app");
+
+function render(){
+  app.innerHTML = "";
+  if (state.screen === "home")    app.appendChild(renderHome());
+  if (state.screen === "play")    app.appendChild(renderPlay());
+  if (state.screen === "summary") app.appendChild(renderSummary());
+  if (state.screen === "parent")  app.appendChild(renderParent());
+  if (state.overlay && state.overlay.kind === "strategy") app.appendChild(renderStrategyOverlay());
+}
+
+function appbar(rightBtnLabel, rightFn){
+  const bar = el("div", "appbar");
+  const brand = el("div", "brand");
+  brand.innerHTML = 'Math <span class="x">Connections</span>';
+  bar.appendChild(brand);
+  if (rightBtnLabel){
+    const b = el("button", "btn ghost sm", rightBtnLabel);
+    b.onclick = rightFn; bar.appendChild(b);
+  }
+  return bar;
+}
+
+/* ---------- HOME ---------- */
+function renderHome(){
+  const wrap = el("div");
+  wrap.appendChild(appbar("👪 Grown-ups", () => { state.screen = "parent"; render(); }));
+
+  const card = el("div", "card");
+  const hero = el("div", "hero");
+  hero.innerHTML =
+    '<div class="big-emoji">🔺</div>' +
+    '<h1>Fact-Family Friends</h1>' +
+    '<p>Add and take away with the same three numbers!</p>';
+  card.appendChild(hero);
+
+  // level picker
+  const levels = [
+    { max: 5,  title: "Within 5",  sub: "1–5" },
+    { max: 10, title: "Within 10", sub: "1–10" },
+    { max: 20, title: "Within 20", sub: "teens" },
+  ];
+  const lp = el("div", "levelpick");
+  for (const lv of levels){
+    const b = el("button", "levelbtn" + (state.config.numberRange.max === lv.max ? " on" : ""));
+    b.innerHTML = `${lv.title}<span class="sub">${lv.sub}</span>`;
+    b.onclick = () => {
+      state.config.numberRange.max = lv.max;
+      state.config.numberRange.min = 0;
+      persistConfig(); render();
+    };
+    lp.appendChild(b);
+  }
+  card.appendChild(lp);
+
+  const startRow = el("div", "center");
+  startRow.style.marginTop = "16px";
+  const start = el("button", "btn green big", "▶  Start");
+  start.onclick = startSession;
+  startRow.appendChild(start);
+  card.appendChild(startRow);
+
+  // sound toggle + tiny streak hint
+  const foot = el("div", "row spread");
+  foot.style.marginTop = "16px";
+  const snd = el("button", "linkbtn", state.settings.speech ? "🔊 Voice on" : "🔇 Voice off");
+  snd.onclick = () => { state.settings.speech = !state.settings.speech; persistSettings(); render(); };
+  foot.appendChild(snd);
+  const total = el("div", "muted", `${state.problemLog.length} problems practiced`);
+  total.style.fontWeight = "700"; total.style.fontSize = "14px";
+  foot.appendChild(total);
+  card.appendChild(foot);
+
+  wrap.appendChild(card);
+  return wrap;
+}
+
+/* ---------- PLAY ---------- */
+function makeStud(color, extra){
+  const s = el("div", "stud " + color + (extra ? " " + extra : ""));
+  s.innerHTML = '<div class="body"></div><div class="top"></div><div class="glint"></div>';
+  return s;
+}
+
+// SVG fact-family triangle. hidden in {'whole','a','b', null}.
+function renderTriangle(p){
+  const v = state.view;
+  const hidden = v.solved ? null
+    : p.problemType === "ADD" ? "whole"
+    : (p.knownIsA ? "b" : "a");                  // the unknown bottom vertex
+  const whole = (hidden === "whole") ? "?" : p.whole;
+  const aVal  = (hidden === "a") ? "?" : p.a;
+  const bVal  = (hidden === "b") ? "?" : p.b;
+  const opGlyph = p.operation === "addition" ? "+" : "−";
+  const c = (txt, hl) => hl ? '<tspan>?</tspan>' : txt;
+  const col = "#1e3a5f";
+  const fill = h => h ? "#fef3c7" : "#fff";
+  const stroke = h => h ? "#f59e0b" : "#cbd5e1";
+  // coordinates
+  const top = [180, 46], bl = [70, 196], br = [290, 196];
+  function vertex(x, y, val, isHidden){
+    return `<circle class="vtx-circle" cx="${x}" cy="${y}" r="40" fill="${fill(isHidden)}" stroke="${stroke(isHidden)}" stroke-width="5"/>`
+      + `<text class="vtx-text ${isHidden?'tri-q':''}" x="${x}" y="${y+13}" text-anchor="middle" font-size="42" fill="${isHidden?'#b45309':col}">${val}</text>`;
+  }
+  return `<svg viewBox="0 0 360 250" role="img" aria-label="fact family triangle">
+    <line x1="${top[0]}" y1="${top[1]}" x2="${bl[0]}" y2="${bl[1]}" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+    <line x1="${top[0]}" y1="${top[1]}" x2="${br[0]}" y2="${br[1]}" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+    <line x1="${bl[0]}" y1="${bl[1]}" x2="${br[0]}" y2="${br[1]}" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 12"/>
+    <text x="118" y="120" text-anchor="middle" font-size="30" fill="#64748b" font-weight="900">${opGlyph}</text>
+    ${vertex(top[0], top[1], whole, hidden==="whole")}
+    ${vertex(bl[0], bl[1], aVal, hidden==="a")}
+    ${vertex(br[0], br[1], bVal, hidden==="b")}
+  </svg>`;
+}
+
+// The counter tray that illustrates the situation.
+function renderTray(p){
+  const v = state.view;
+  const tray = el("div", "tray");
+  const colA = p.story.colA || "blue";
+  const colB = p.story.colB || "green";
+  if (p.problemType === "ADD"){
+    for (let i = 0; i < p.a; i++) tray.appendChild(makeStud(colA));
+    for (let i = 0; i < p.b; i++) tray.appendChild(makeStud(colB));
+  } else {
+    // show `whole` studs; the known part is "taken away" (faded+cross), the rest are the answer group
+    const knownColor = p.knownIsA ? colA : colB;
+    const otherColor = p.knownIsA ? colB : colA;
+    for (let i = 0; i < p.knownPart; i++) tray.appendChild(makeStud(knownColor, "taken"));
+    for (let i = 0; i < (p.whole - p.knownPart); i++) tray.appendChild(makeStud(otherColor));
+  }
+  return tray;
+}
+
+function renderPlay(){
+  const p = state.problem, v = state.view;
+  const wrap = el("div");
+  wrap.appendChild(appbar("✖ Home", () => { if (confirmLeave()) { state.screen = "home"; render(); } }));
+
+  const card = el("div", "card");
+
+  // progress dots
+  const dots = el("div", "progress-dots");
+  for (let i = 0; i < state.session.length; i++){
+    const d = el("i");
+    if (i < state.session.index) d.classList.add(state.session.results[i] ? "done" : "now");
+    else if (i === state.session.index) d.classList.add("now");
+    dots.appendChild(d);
+  }
+  card.appendChild(dots);
+
+  // story / prompt
+  const story = el("div", "story");
+  story.textContent = p.problemText;
+  card.appendChild(story);
+
+  // triangle
+  const tri = el("div", "triangle-wrap");
+  tri.innerHTML = renderTriangle(p);
+  card.appendChild(tri);
+
+  // tray of counters
+  card.appendChild(renderTray(p));
+
+  // answer stepper
+  const ans = el("div", "answer");
+  const minus = el("button", "stepper", "−");
+  const box = el("div", "answer-box", String(v.built));
+  const plus = el("button", "stepper", "+");
+  const maxV = Math.max(p.whole, 10);
+  minus.disabled = v.solved || v.built <= 0;
+  plus.disabled  = v.solved || v.built >= maxV;
+  minus.onclick = () => { if (v.built > 0){ v.built--; render(); } };
+  plus.onclick  = () => { if (v.built < maxV){ v.built++; speakNum(v.built); render(); } };
+  ans.appendChild(minus); ans.appendChild(box); ans.appendChild(plus);
+  card.appendChild(ans);
+
+  // feedback banner
+  if (v.feedback){
+    const ban = el("div", "banner " + v.feedback.kind, v.feedback.text);
+    card.appendChild(ban);
+  }
+
+  // the connection reveal (morph) — sits right under the praise banner
+  if (v.showMorph){
+    card.appendChild(renderConnection(p));
+  }
+
+  // controls
+  const ctr = el("div", "controls");
+  if (!v.solved){
+    const hint = el("button", "btn amber sm", "💡 Hint");
+    hint.onclick = showHint;
+    const check = el("button", "btn green", "✓ Check");
+    check.onclick = debounce(checkFactFamily, 350);
+    ctr.appendChild(hint); ctr.appendChild(check);
+  } else {
+    // correct: optionally show the connection (ADD only), then continue
+    if (p.problemType === "ADD" && state.config.hintBehavior.alwaysOfferMorph && !v.showMorph){
+      const m = el("button", "btn purple", "✨ Show the connection");
+      m.onclick = doMorph;
+      ctr.appendChild(m);
+    }
+    const next = el("button", "btn green", state.session.index + 1 >= state.session.length ? "🎉 Finish" : "Next →");
+    next.onclick = () => openStrategy();
+    ctr.appendChild(next);
+  }
+  card.appendChild(ctr);
+
+  // hint detail
+  if (v.hintUsed && !v.solved){
+    const h = el("div", "banner wrong");
+    h.style.background = "#fffbeb"; h.style.borderColor = "#fde68a"; h.style.color = "#92400e";
+    h.textContent = p.problemType === "ADD"
+      ? `Count on from ${p.a}: ${countOnString(p.a, p.b)}`
+      : `${p.knownPart} and ? make ${p.whole}.`;
+    card.appendChild(h);
+  }
+
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function renderConnection(p){
+  const box = el("div", "connection");
+  const eqs = [
+    `<span class="add">${p.a} + ${p.b} = ${p.whole}</span>`,
+    `<span class="sub">${p.whole} − ${p.a} = ${p.b}</span>`,
+    `<span class="sub">${p.whole} − ${p.b} = ${p.a}</span>`,
+  ];
+  eqs.forEach((html, i) => {
+    const e = el("div", "eq show");
+    e.style.animationDelay = (i * 0.5) + "s";
+    e.innerHTML = (i === 0 ? "" : "so … ") + html;
+    box.appendChild(e);
+  });
+  return box;
+}
+
+function speakNum(n){ /* light tick — only speak the running count on add-style building is noisy; keep quiet */ }
+function countOnString(a, b){ let s = []; for (let i = 1; i <= b; i++) s.push(a + i); return s.join(", "); }
+
+/* ---------- SUMMARY ---------- */
+function renderSummary(){
+  const s = state.session;
+  const wrap = el("div");
+  wrap.appendChild(appbar("👪 Grown-ups", () => { state.screen = "parent"; render(); }));
+  const card = el("div", "card center");
+  const pct = s.summary.total ? Math.round(100 * s.summary.firstTry / s.summary.total) : 0;
+  card.innerHTML =
+    `<div class="big-emoji" style="font-size:64px">${pct >= 80 ? "🌟" : pct >= 50 ? "😀" : "💪"}</div>` +
+    `<h1 style="font-size:clamp(24px,6vw,34px);color:var(--blue-d);font-weight:900;margin:6px 0">Session done!</h1>` +
+    `<p style="font-size:clamp(17px,4vw,22px);font-weight:800">You got <b>${s.summary.firstTry}</b> of <b>${s.summary.total}</b> on the first try.</p>`;
+  const row = el("div", "controls");
+  const again = el("button", "btn green big", "▶ Play again");
+  again.onclick = startSession;
+  const home = el("button", "btn ghost", "🏠 Home");
+  home.onclick = () => { state.screen = "home"; render(); };
+  row.appendChild(again); row.appendChild(home);
+  card.appendChild(row);
+  wrap.appendChild(card);
+  speak(`You got ${s.summary.firstTry} out of ${s.summary.total} on the first try. ${pct>=80?'Amazing!':'Keep going!'}`);
+  return wrap;
+}
+
+/* ---------- STRATEGY OVERLAY ---------- */
+function renderStrategyOverlay(){
+  const ov = el("div", "overlay");
+  const sheet = el("div", "sheet");
+  sheet.appendChild(el("h3", null, "How did you figure it out?"));
+  const grid = el("div", "stratgrid");
+  for (const st of STRATEGIES){
+    const b = el("button", "stratbtn");
+    b.innerHTML = `<span class="ic">${st.ic}</span>${st.label}`;
+    b.onclick = () => chooseStrategy(st.tag);
+    grid.appendChild(b);
+  }
+  sheet.appendChild(grid);
+  const skip = el("div", "center");
+  skip.style.marginTop = "12px";
+  const sb = el("button", "linkbtn", "Skip →");
+  sb.onclick = () => chooseStrategy(null);
+  skip.appendChild(sb);
+  sheet.appendChild(skip);
+  ov.appendChild(sheet);
+  ov.onclick = (e) => { if (e.target === ov) chooseStrategy(null); };
+  return ov;
+}
+
+/* ---------- PARENT DASHBOARD ---------- */
+function renderParent(){
+  const wrap = el("div");
+  wrap.appendChild(appbar("🏠 Home", () => { state.screen = "home"; render(); }));
+  const card = el("div", "card dash");
+  card.appendChild(el("h2", null, `${CHILD_NAME}'s progress`));
+
+  const log = state.problemLog;
+  const ff = log.filter(r => r.mode === "factFamily");
+  const firstTry = ff.filter(r => r.correctFirstTry).length;
+  const pct = ff.length ? Math.round(100 * firstTry / ff.length) : 0;
+
+  const stats = el("div", "statgrid");
+  stats.appendChild(stat(ff.length, "problems"));
+  stats.appendChild(stat(pct + "%", "first-try"));
+  stats.appendChild(stat(state.sessionLog.length, "sessions"));
+  stats.appendChild(stat(masteredCount(), "facts mastered"));
+  card.appendChild(stats);
+
+  // recommendation
+  const reco = el("div", "reco");
+  reco.textContent = generateRecommendation();
+  card.appendChild(reco);
+
+  // add vs sub transfer
+  card.appendChild(el("div", "section-title", "Add ↔ Subtract (does it transfer?)"));
+  card.appendChild(renderTransfer(ff));
+
+  // fact mastery table
+  card.appendChild(el("div", "section-title", "Fact mastery (box 1 = needs work, 5 = solid)"));
+  card.appendChild(renderFactTable());
+
+  // recent problems
+  card.appendChild(el("div", "section-title", "Recent problems"));
+  card.appendChild(renderRecent(ff));
+
+  // tools
+  card.appendChild(el("div", "section-title", "Tools for the AI feedback loop"));
+  const tools = el("div", "row wrap");
+  const exp = el("button", "btn sm", "⬇ Export results (JSON)");
+  exp.onclick = exportJSON;
+  const copy = el("button", "btn sm purple", "📋 Copy analysis prompt");
+  copy.onclick = copyAnalysisPrompt;
+  const imp = el("button", "btn sm amber", "⚙ Import config");
+  imp.onclick = () => { state._showImport = !state._showImport; render(); };
+  const reset = el("button", "btn sm ghost", "🗑 Reset progress");
+  reset.onclick = resetProgress;
+  tools.appendChild(exp); tools.appendChild(copy); tools.appendChild(imp); tools.appendChild(reset);
+  card.appendChild(tools);
+
+  // config import box
+  card.appendChild(renderConfigImport());
+
+  // active config note
+  if (state.config.configId || state.config.note){
+    const note = el("div", "muted");
+    note.style.cssText = "margin-top:10px;font-size:13px;font-weight:700";
+    note.textContent = `Active config: ${state.config.configId || "(none)"}${state.config.note ? " — " + state.config.note : ""}`;
+    card.appendChild(note);
+  }
+
+  wrap.appendChild(card);
+  return wrap;
+}
+function stat(n, l){ const d = el("div","stat"); d.appendChild(el("div","n",String(n))); d.appendChild(el("div","l",l)); return d; }
+
+function masteredCount(){ return Object.values(state.mastery).filter(m => m.box >= 4).length; }
+
+function renderTransfer(ff){
+  // For each family the child has attempted, compare ADD accuracy vs SUB accuracy.
+  const byFam = {};
+  for (const r of ff){
+    const f = byFam[r.factFamilyId] || (byFam[r.factFamilyId] = { add:[0,0], sub:[0,0] });
+    const slot = r.operation === "addition" ? f.add : f.sub;
+    slot[1]++; if (r.correctFirstTry) slot[0]++;
+  }
+  const wrap = el("div", "transfer");
+  const fams = Object.keys(byFam).sort();
+  if (!fams.length){ wrap.appendChild(el("div","muted","No data yet — play a session!")); return wrap; }
+  for (const id of fams.slice(0, 12)){
+    const f = byFam[id];
+    const addPct = f.add[1] ? Math.round(100*f.add[0]/f.add[1]) + "%" : "–";
+    const subPct = f.sub[1] ? Math.round(100*f.sub[0]/f.sub[1]) + "%" : "–";
+    const c = el("div", "tcell");
+    c.innerHTML = `<b>${id}</b><br>add ${addPct} · take&#8209;away ${subPct}`;
+    wrap.appendChild(c);
+  }
+  return wrap;
+}
+
+function renderFactTable(){
+  const facts = Object.keys(state.mastery);
+  const t = el("table", "facts");
+  t.innerHTML = "<tr><th>Fact</th><th>Box</th><th>Seen</th><th>Right</th></tr>";
+  if (!facts.length){ const tr = el("tr"); const td = el("td","muted","No facts practiced yet."); td.colSpan=4; tr.appendChild(td); t.appendChild(tr); return t; }
+  facts.sort((a,b) => (state.mastery[a].box - state.mastery[b].box) || (b.includes("-") - a.includes("-")));
+  const wrap = el("div", "scroll-x");
+  for (const f of facts){
+    const m = state.mastery[f];
+    const tr = el("tr");
+    tr.innerHTML = `<td><b>${f}</b></td>`
+      + `<td><span class="box-chip b${m.box}">${m.box}</span></td>`
+      + `<td>${m.attempts}</td>`
+      + `<td>${m.attempts ? Math.round(100*m.correct/m.attempts)+'%' : '–'}</td>`;
+    t.appendChild(tr);
+  }
+  wrap.appendChild(t);
+  return wrap;
+}
+
+function renderRecent(ff){
+  const wrap = el("div", "scroll-x");
+  const t = el("table", "facts");
+  t.innerHTML = "<tr><th>When</th><th>Type</th><th>Problem</th><th>Ans</th><th>Got</th><th></th></tr>";
+  const recent = ff.slice(-18).reverse();
+  if (!recent.length){ const tr=el("tr"); const td=el("td","muted","Nothing yet."); td.colSpan=6; tr.appendChild(td); t.appendChild(tr); }
+  for (const r of recent){
+    const tr = el("tr");
+    const when = new Date(r.timestamp);
+    const hhmm = when.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+    tr.innerHTML = `<td>${hhmm}</td><td>${r.problemType}</td><td>${r.factCanonical}</td>`
+      + `<td>${r.correctAnswer}</td><td>${r.childAnswer==null?'–':r.childAnswer}</td>`
+      + `<td>${r.correctFirstTry ? "✅" : "✏️×"+r.attempts}</td>`;
+    t.appendChild(tr);
+  }
+  wrap.appendChild(t);
+  return wrap;
+}
+
+function renderConfigImport(){
+  const box = el("div");
+  if (!state._showImport) return box;          // collapsed until "Import config" is tapped
+  box.style.marginTop = "12px";
+  box.appendChild(el("div","muted","Paste an adaptive config from the AI (PART 2). It is validated and clamped before use."));
+  const ta = el("textarea", "config");
+  ta.placeholder = '{ "numberRange": {"max": 10}, "emphasizeFacts": ["10-7","10-6"], ... }';
+  box.appendChild(ta);
+  const row = el("div","row");
+  const apply = el("button","btn sm green","Apply config");
+  apply.onclick = () => {
+    const res = validateConfig(ta.value);
+    if (!res.ok){ showErrors(box, res.errors); toast("Couldn't load config.", true); return; }
+    applyConfig(res.config);
+    toast("Config applied! " + (res.config.configId || ""));
+    if (res.errors.length) showErrors(box, res.errors);
+    state._showImport = false; render();
+  };
+  const cancel = el("button","btn sm ghost","Cancel");
+  cancel.onclick = () => { state._showImport = false; render(); };
+  row.appendChild(apply); row.appendChild(cancel);
+  box.appendChild(row);
+  return box;
+}
+function showErrors(box, errors){
+  let e = box.querySelector(".errlist");
+  if (!e){ e = el("div","errlist"); box.appendChild(e); }
+  e.innerHTML = errors.length ? ("Notes:<br>• " + errors.join("<br>• ")) : "";
+}
+
+/* =========================================================================
+   11. RECOMMENDATION (built-in adaptivity surfaced for the dad)
+   ========================================================================= */
+function generateRecommendation(){
+  const facts = Object.entries(state.mastery);
+  if (facts.length < 3) return "Play a few sessions and a focus suggestion will appear here.";
+  // lowest boxes first; tie-break by worst accuracy
+  facts.sort((a,b) => (a[1].box - b[1].box) ||
+    ((a[1].correct/Math.max(1,a[1].attempts)) - (b[1].correct/Math.max(1,b[1].attempts))));
+  const weak = facts.filter(([f,m]) => m.box <= 2).slice(0, 3).map(([f]) => f);
+  if (!weak.length) return "Looking strong! Try bumping the level up (Within 10 → Within 20).";
+  const subWeak = weak.filter(f => f.includes("-")).length;
+  const tail = subWeak >= 2 ? `${CHILD_NAME} may be stronger at adding than taking away — use “Show the connection.”` : "";
+  return `Focus next: ${weak.join(", ")}. ${tail}`;
+}
+
+/* =========================================================================
+   12. RESULTS DUMP + COPY ANALYSIS PROMPT
+   ========================================================================= */
+function buildResultsDump(){
+  const ff = state.problemLog.filter(r => r.mode === "factFamily");
+  const stamps = ff.map(r => r.timestamp).sort();
+  return {
+    meta: {
+      app: "Math Connections",
+      appVersion: APP_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      child: CHILD_NAME,
+      exportedAt: nowIso(),
+      totalProblems: ff.length,
+      dateRange: stamps.length ? { from: stamps[0], to: stamps[stamps.length-1] } : null,
+    },
+    activeConfig: state.config,
+    factMastery: state.mastery,
+    sessions: state.sessionLog,
+    problems: state.problemLog,
+  };
+}
+
+function download(filename, text){
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
+function exportJSON(){
+  const dump = buildResultsDump();
+  download(`math-connections-${CHILD_NAME}-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(dump, null, 2));
+  toast("Results downloaded.");
+}
+
+const ANALYSIS_INSTRUCTIONS =
+`You are a friendly early-math tutor analyzing practice logs for ${CHILD_NAME} (age 6) on
+ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=3).
+The DATA below is JSON exported from his practice app.
+
+Each problem record has: problemType (ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"),
+fact (e.g. "8-3"), operation, correctAnswer, childAnswer, errorValue (childAnswer - correctAnswer),
+attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs.
+
+Please find:
+1. Which specific FACTS and FACT FAMILIES are weak (low correctFirstTry, many attempts, repeated
+   errorValue patterns such as off-by-one (+/-1) or reversals).
+2. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+   accuracy on ADD vs SUB1/SUB2/CONNECT. Is subtraction lagging behind addition?
+3. Error patterns clustered by errorValue and problemType.
+4. A recommended next focus (2-4 families or facts), with brief reasoning.
+
+Reply in TWO parts:
+PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
+PART 2 — a SINGLE fenced \`\`\`json code block that is a valid adaptiveConfig the app can import
+directly (schema in CONFIG_SCHEMA.md). Only emphasize/avoid facts justified by the data. Keep
+numberRange (max 5-20) and sessionLength (3-12) age-appropriate. Example keys: numberRange,
+sessionLength, emphasizeFamilies, emphasizeFacts, avoidFamilies, problemTypeMix, hintBehavior, note.
+
+DATA:
+`;
+
+function copyAnalysisPrompt(){
+  const dump = buildResultsDump();
+  const summary = quickSummaryText(dump);
+  const text = summary + "\n\n" + ANALYSIS_INSTRUCTIONS + JSON.stringify(dump);
+  const done = () => toast("Analysis prompt copied — paste into ChatGPT or Claude.");
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function quickSummaryText(dump){
+  const ff = dump.problems;
+  const ft = ff.filter(r => r.correctFirstTry).length;
+  const pct = ff.length ? Math.round(100*ft/ff.length) : 0;
+  return `# Math Connections results for ${dump.meta.child}\n`
+    + `Problems: ${ff.length} · First-try: ${pct}% · Sessions: ${dump.sessions.length}\n`
+    + `Recommendation (built-in): ${generateRecommendation()}`;
+}
+function fallbackCopy(text, done){
+  const ta = el("textarea"); ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch(e){ toast("Copy failed — use Export instead.", true); }
+  ta.remove();
+}
+
+function resetProgress(){
+  if (!window.confirm(`Erase all of ${CHILD_NAME}'s saved progress? (Export first if you want a copy.)`)) return;
+  state.problemLog = []; state.sessionLog = []; state.mastery = {}; state.recentMisses = [];
+  persistLogs(); persistMastery();
+  toast("Progress reset.");
+  render();
+}
+
+/* =========================================================================
+   13. MISC UI HELPERS
+   ========================================================================= */
+function debounce(fn, ms){
+  let t = 0;
+  return function(){ const now = Date.now(); if (now - t < ms) return; t = now; fn.apply(this, arguments); };
+}
+function confirmLeave(){
+  if (state.session && state.session.index === 0 && !state.view.solved) return true;
+  return window.confirm("Leave this session?");
+}
+
+/* =========================================================================
+   14. SELF-TESTS  (run in console:  runSelfTests()  )
+   ========================================================================= */
+function runSelfTests(){
+  let pass = 0, fail = 0;
+  const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error("FAIL:", msg); } };
+
+  // canonical family id
+  ok(canonFamilyId(5,3) === canonFamilyId(3,5), "canonFamilyId order-independent");
+  ok(canonFamilyId(3,5) === "3+5=8", "canonFamilyId format");
+
+  // family generation in range
+  const fams = familiesInRange({ numberRange: { max: 10 } });
+  ok(fams.every(f => f.a <= f.b && f.a + f.b === f.whole && f.whole <= 10 && f.a >= 1), "families valid & in range");
+
+  // problem generation invariants (200 iters across types)
+  const savedCfg = state.config, savedLast = state.lastKey;
+  for (let i = 0; i < 200; i++){
+    const p = generateFactFamilyProblem();
+    const good = p.a <= p.b && p.a + p.b === p.whole && p.whole <= p.range &&
+      ((p.problemType === "ADD" && p.correctAnswer === p.whole && p.operation === "addition") ||
+       (p.problemType !== "ADD" && p.correctAnswer === p.whole - p.knownPart && p.operation === "subtraction" &&
+        p.correctAnswer >= 0));
+    if (!good){ fail++; console.error("FAIL: bad problem", p); break; }
+  }
+  pass++;
+
+  // validateConfig: example ok
+  const ex = validateConfig({ numberRange:{max:10}, sessionLength:6, emphasizeFacts:["10-7"], problemTypeMix:{ADD:1,SUB1:1,SUB2:1,CONNECT:1} });
+  ok(ex.ok && ex.config.sessionLength === 6 && Math.abs(Object.values(ex.config.problemTypeMix).reduce((a,b)=>a+b,0) - 1) < 1e-9, "validateConfig normalizes mix");
+
+  // validateConfig: junk never throws, clamps
+  const junk = [null, "{", "[]", 42, {numberRange:{max:9999}}, {sessionLength:-5}, {emphasizeFacts:"nope"}, {emphasizeFamilies:["bad","2+3=5"]}, {ttsRate:99}];
+  let threw = false;
+  for (const j of junk){ try { const r = validateConfig(j); if (r.ok){ ok(r.config.numberRange.max <= 20 && r.config.numberRange.max >= 5, "clamp range"); ok(r.config.sessionLength >= 3, "clamp session"); ok(clamp(r.config.ttsRate,0.6,1.4) === r.config.ttsRate, "clamp tts"); } } catch(e){ threw = true; } }
+  ok(!threw, "validateConfig never throws on junk");
+  const famDrop = validateConfig({emphasizeFamilies:["bad","2+3=5"]});
+  ok(famDrop.config.emphasizeFamilies.length === 1 && famDrop.config.emphasizeFamilies[0] === "2+3=5", "drops malformed family, keeps good");
+
+  // mastery promote/demote stays in 1..5
+  const savedMastery = state.mastery; state.mastery = {};
+  const sc = state.config; state.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  // streakToMaster=3 -> 1 box per 3 correct; 15 correct guarantees the box-5 cap.
+  for (let i = 0; i < 15; i++) factMasteryUpdate("3+5", true);
+  ok(state.mastery["3+5"].box === 5, "promotes to box 5 and caps");
+  for (let i = 0; i < 10; i++) factMasteryUpdate("3+5", false);
+  ok(state.mastery["3+5"].box === 1, "demotes to box 1 and floors");
+  state.mastery = savedMastery; state.config = sc;
+
+  // weighted selection avoids the avoid-list
+  const pool = familiesInRange({ numberRange:{max:10} });
+  const cfg2 = JSON.parse(JSON.stringify(DEFAULT_CONFIG)); cfg2.avoidFamilies = pool.slice(0,5).map(f=>f.id);
+  let avoidedHit = false;
+  for (let i = 0; i < 300; i++){ const f = selectWeightedFamily(pool, "ADD", cfg2); if (cfg2.avoidFamilies.includes(f.id)) { avoidedHit = true; break; } }
+  ok(!avoidedHit, "selectWeightedFamily honors avoid list");
+
+  state.config = savedCfg; state.lastKey = savedLast;
+  persistMastery(); persistConfig();          // flush real state back (tests mutate then restore)
+  console.log(`%cSelf-tests: ${pass} passed, ${fail} failed`, `color:${fail?'#b91c1c':'#15803d'};font-weight:bold`);
+  return { pass, fail };
+}
+window.runSelfTests = runSelfTests;
+
+/* =========================================================================
+   15. BOOT
+   ========================================================================= */
+function boot(){
+  // sync sound setting name (older field) -> speech
+  if (state.settings.speech == null) state.settings.speech = true;
+  render();
+  if (location.hash === "#test") setTimeout(runSelfTests, 300);
+}
+boot();
+</script>
+</body>
+</html>
