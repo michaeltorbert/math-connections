@@ -620,6 +620,10 @@ function classifyDeficitSignals(record){
       family: record.factFamilyId || familyIdForFact(record.fact),
       reason: code === "PART_MINUS_PART"
         ? "wrote a true part-minus-part equation instead of starting with the whole"
+        : code === "ARITHMETIC_ERROR"
+          ? "kept the family structure but made an arithmetic subtraction error"
+        : code === "DUPLICATE_SUBTRACTION"
+          ? "repeated one subtraction instead of making both matching subtractions"
         : code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY"
           ? "did not keep the family whole in the first subtraction position"
           : "did not switch the two parts to make the companion subtraction",
@@ -845,31 +849,95 @@ function allNumbers(values){
   return values.every(v => typeof v === "number" && Number.isInteger(v));
 }
 
+function constructRowKey(values){
+  return values.join("-");
+}
+
+function expectedConstructKeys(p){
+  return (p.constructRows || []).map(row => constructRowKey(row.expected || []));
+}
+
+function gradeConstructRows(p, results){
+  const rows = p.constructRows || [];
+  if (!rows.length) return [];
+  const expectedKeys = expectedConstructKeys(p);
+  const used = new Set();
+  return rows.map(row => {
+    const values = structuralRowValues(row, results);
+    const grade = {
+      row,
+      values,
+      isCorrect: false,
+      errorCode: null,
+      arithmeticCorrect: null,
+      familyCorrect: false,
+      acceptedExpected: row.expected || [],
+    };
+    if (!allNumbers(values)) return grade;
+
+    const [whole, subtrahend, difference] = values;
+    const parts = [p.a, p.b];
+    const key = constructRowKey(values);
+    grade.arithmeticCorrect = whole - subtrahend === difference;
+
+    if (whole !== p.whole && parts.includes(whole) && parts.includes(subtrahend) && grade.arithmeticCorrect){
+      grade.errorCode = "PART_MINUS_PART";
+      return grade;
+    }
+    if (whole !== p.whole){
+      grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "WHOLE_NOT_FIRST";
+      return grade;
+    }
+    if (parts.includes(subtrahend) && !grade.arithmeticCorrect){
+      grade.errorCode = "ARITHMETIC_ERROR";
+      return grade;
+    }
+    if (!parts.includes(subtrahend) || !parts.includes(difference)){
+      grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "WRONG_PART_POSITION";
+      return grade;
+    }
+    if (!expectedKeys.includes(key)){
+      grade.errorCode = row.skill === "companionSubtraction" ? "PARTS_NOT_SWITCHED" : "WRONG_PART_POSITION";
+      return grade;
+    }
+    if (p.problemType === "ADD_TO_SUB" && used.has(key)){
+      grade.errorCode = "DUPLICATE_SUBTRACTION";
+      return grade;
+    }
+
+    used.add(key);
+    grade.isCorrect = true;
+    grade.familyCorrect = true;
+    grade.acceptedExpected = values.slice();
+    return grade;
+  });
+}
+
+function applyConstructRowGrades(p, results){
+  const grades = gradeConstructRows(p, results);
+  if (!grades.length) return results;
+  const byId = Object.fromEntries(results.map(r => [r.id, r]));
+  for (const grade of grades){
+    for (let i = 0; i < grade.row.fieldIds.length; i++){
+      const result = byId[grade.row.fieldIds[i]];
+      if (!result) continue;
+      result.isCorrect = grade.isCorrect;
+      result.expected = grade.acceptedExpected[i];
+      result.errorCode = grade.errorCode;
+      result.arithmeticCorrect = grade.arithmeticCorrect;
+      result.familyCorrect = grade.familyCorrect;
+    }
+  }
+  return results;
+}
+
 function structuralErrorsForProblem(p, results){
   if (!isStructuralType(p.problemType)) return [];
   if (p.choiceOptions){
     const result = results[0];
     return result && !result.isCorrect && result.errorCode ? [result.errorCode] : [];
   }
-  const errors = [];
-  for (const row of p.constructRows || []){
-    const values = structuralRowValues(row, results);
-    const expected = row.expected || [];
-    if (!allNumbers(values)) continue;
-    const [whole, subtrahend, difference] = values;
-    if (whole !== p.whole && [p.a, p.b].includes(whole) &&
-        [p.a, p.b].includes(subtrahend) && whole - subtrahend === difference){
-      errors.push("PART_MINUS_PART");
-      continue;
-    }
-    if (whole !== expected[0]) errors.push("WHOLE_NOT_FIRST");
-    if (whole === expected[0] && (subtrahend !== expected[1] || difference !== expected[2])){
-      errors.push(row.skill === "companionSubtraction" ? "PARTS_NOT_SWITCHED" : "WRONG_PART_POSITION");
-    }
-    if (whole - subtrahend === difference && whole !== p.whole){
-      errors.push("TRUE_BUT_OTHER_FAMILY");
-    }
-  }
+  const errors = gradeConstructRows(p, results).map(grade => grade.errorCode).filter(Boolean);
   return [...new Set(errors)];
 }
 
@@ -890,12 +958,14 @@ function structuralArithmeticCorrect(p, results){
 function structuralFamilyCorrect(p, results){
   if (!isStructuralType(p.problemType)) return null;
   if (p.choiceOptions) return Boolean(results[0]?.isCorrect);
-  return results.every(r => r.isCorrect);
+  const grades = gradeConstructRows(p, results);
+  return grades.length ? grades.every(grade => grade.isCorrect) : results.every(r => r.isCorrect);
 }
 
 function focusForErrorCode(code){
   if (code === "PART_MINUS_PART" || code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY") return "wholeFirst";
-  if (code === "PARTS_NOT_SWITCHED" || code === "WRONG_PART_POSITION") return "addToSubTransfer";
+  if (code === "ARITHMETIC_ERROR") return "subtractionRecall";
+  if (code === "PARTS_NOT_SWITCHED" || code === "WRONG_PART_POSITION" || code === "DUPLICATE_SUBTRACTION") return "addToSubTransfer";
   return "addToSubTransfer";
 }
 
@@ -1362,6 +1432,7 @@ function checkFactFamily(){
       locked: Boolean(field.locked),
     };
   });
+  applyConstructRowGrades(p, results);
   if (v.firstAnswers === null){
     v.firstAnswers = Object.assign({}, answers);
     const primaryResult = results.find(r => !r.locked) || results[0];
@@ -1395,6 +1466,12 @@ function structuralFeedback(p, codes){
   }
   if (codes.includes("WHOLE_NOT_FIRST") || codes.includes("WRONG_WHOLE")){
     return `The whole is ${p.whole}. Put the whole first in the subtraction.`;
+  }
+  if (codes.includes("ARITHMETIC_ERROR")){
+    return `The whole is first. Now check the subtraction fact.`;
+  }
+  if (codes.includes("DUPLICATE_SUBTRACTION")){
+    return `Use both subtraction facts. Keep ${p.whole} first, then switch the two parts.`;
   }
   if (codes.includes("PARTS_NOT_SWITCHED") || codes.includes("WRONG_PART_POSITION")){
     return `Keep ${p.whole} first. Then switch the two parts.`;
@@ -1445,12 +1522,15 @@ function recordProblemAndAdvance(){
     answers: p.fields.map(field => {
       const result = (v.fieldResults && v.fieldResults[field.id]) || {};
       const first = firstResults.find(item => item.id === field.id) || {};
+      const loggedExpected = first.expected == null
+        ? (result.expected == null ? field.expected : result.expected)
+        : first.expected;
       return {
         id: field.id,
         fact: field.fact,
         operation: field.operation,
         role: field.role || null,
-        correctAnswer: field.expected,
+        correctAnswer: loggedExpected,
         childAnswer: first.submitted == null ? null : first.submitted,
         finalAnswer: result.submitted == null ? null : result.submitted,
         correctFirstTry: Boolean(first.isCorrect),
@@ -1693,9 +1773,16 @@ function renderChoiceOptions(p){
   for (const option of p.choiceOptions || []){
     const b = el("button", "choice-btn", option.text);
     if (state.view.selectedChoice === option.id) b.classList.add("on");
-    if (result && state.view.selectedChoice === option.id) b.classList.add(result.isCorrect ? "right" : "wrong");
+    if (result && result.submitted === option.id) b.classList.add(result.isCorrect ? "right" : "wrong");
     b.disabled = state.view.solved;
-    b.onclick = () => { state.view.selectedChoice = option.id; render(); };
+    b.onclick = () => {
+      if (state.view.selectedChoice !== option.id && !state.view.solved){
+        state.view.fieldResults = {};
+        state.view.feedback = null;
+      }
+      state.view.selectedChoice = option.id;
+      render();
+    };
     grid.appendChild(b);
   }
   return grid;
@@ -2153,6 +2240,8 @@ Please find:
 4. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
    answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
 5. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
+   Treat ARITHMETIC_ERROR as subtraction recall, and DUPLICATE_SUBTRACTION or PARTS_NOT_SWITCHED
+   as add-to-subtract transfer/structure.
 6. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
@@ -2286,6 +2375,86 @@ function runSelfTests(){
   };
   const structuralSignals = classifyDeficitSignals(structuralMiss).map(s => s.id);
   ok(structuralSignals.includes("wholeFirst"), "part-minus-part routes to whole-first focus");
+
+  const addToSubProblem = {
+    problemType: "ADD_TO_SUB",
+    a: 1,
+    b: 4,
+    whole: 5,
+    constructRows: [
+      { fieldIds: ["r1w", "r1s", "r1d"], expected: [5, 1, 4], skill: "additionToSubtraction" },
+      { fieldIds: ["r2w", "r2s", "r2d"], expected: [5, 4, 1], skill: "additionToSubtraction" },
+    ],
+  };
+  const reversedRows = [
+    { id: "r1w", submitted: 5 }, { id: "r1s", submitted: 4 }, { id: "r1d", submitted: 1 },
+    { id: "r2w", submitted: 5 }, { id: "r2s", submitted: 1 }, { id: "r2d", submitted: 4 },
+  ];
+  applyConstructRowGrades(addToSubProblem, reversedRows);
+  ok(reversedRows.every(r => r.isCorrect), "ADD_TO_SUB accepts both valid subtraction rows in either order");
+  ok(structuralFamilyCorrect(addToSubProblem, reversedRows) === true, "reversed ADD_TO_SUB rows still count as family-correct");
+
+  const duplicateRows = [
+    { id: "r1w", submitted: 5 }, { id: "r1s", submitted: 1 }, { id: "r1d", submitted: 4 },
+    { id: "r2w", submitted: 5 }, { id: "r2s", submitted: 1 }, { id: "r2d", submitted: 4 },
+  ];
+  applyConstructRowGrades(addToSubProblem, duplicateRows);
+  ok(!duplicateRows.every(r => r.isCorrect) && structuralErrorsForProblem(addToSubProblem, duplicateRows).includes("DUPLICATE_SUBTRACTION"),
+    "ADD_TO_SUB rejects duplicate use of the same subtraction fact");
+
+  const arithmeticProblem = {
+    problemType: "COMPANION",
+    a: 2,
+    b: 7,
+    whole: 9,
+    constructRows: [
+      { fieldIds: ["cw", "cs", "cd"], expected: [9, 7, 2], skill: "companionSubtraction" },
+    ],
+  };
+  const arithmeticRows = [
+    { id: "cw", submitted: 9 },
+    { id: "cs", submitted: 2 },
+    { id: "cd", submitted: 5 },
+  ];
+  const arithmeticErrors = structuralErrorsForProblem(arithmeticProblem, arithmeticRows);
+  ok(arithmeticErrors.includes("ARITHMETIC_ERROR"), "wrong subtraction with the right whole and parts is an arithmetic error");
+  ok(!arithmeticErrors.includes("PARTS_NOT_SWITCHED") && !arithmeticErrors.includes("WRONG_PART_POSITION"),
+    "arithmetic errors are not misclassified as part-switching errors");
+
+  const savedViewForChoice = state.view;
+  state.view = {
+    selectedChoice: "family",
+    fieldResults: { choice: { submitted: "partMinusPart", isCorrect: false } },
+    solved: false,
+    feedback: { kind: "wrong", text: "try again" },
+  };
+  const choiceGrid = renderChoiceOptions({
+    choiceOptions: [
+      { id: "family", text: "9 - 2 = 7" },
+      { id: "partMinusPart", text: "7 - 2 = 5" },
+    ],
+  });
+  const choiceButtons = Array.from(choiceGrid.children);
+  ok(choiceButtons[0].classList.contains("on") && !choiceButtons[0].classList.contains("wrong"),
+    "newly selected choice is highlighted without inheriting stale wrong styling");
+  ok(choiceButtons[1].classList.contains("wrong"), "wrong styling stays on the submitted choice");
+
+  state.view = {
+    selectedChoice: "partMinusPart",
+    fieldResults: { choice: { submitted: "partMinusPart", isCorrect: false } },
+    solved: false,
+    feedback: { kind: "wrong", text: "try again" },
+  };
+  const nextChoiceGrid = renderChoiceOptions({
+    choiceOptions: [
+      { id: "family", text: "9 - 2 = 7" },
+      { id: "partMinusPart", text: "7 - 2 = 5" },
+    ],
+  });
+  Array.from(nextChoiceGrid.children)[0].click();
+  ok(!state.view.fieldResults.choice && state.view.feedback === null,
+    "changing a choice after a wrong check clears stale feedback");
+  state.view = savedViewForChoice;
 
   const compCfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   compCfg.problemTypeMix = { COMPANION:1, ADD_TO_SUB:0, NOT_FAMILY:0, WHOLE_FIRST:0, ADD:0, SUB1:0, SUB2:0, CONNECT:0 };

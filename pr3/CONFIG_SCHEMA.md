@@ -165,6 +165,15 @@ Each **problem record**:
 accuracy. `PART_MINUS_PART` means the submitted equation may be arithmetically true but does
 not belong to the displayed family because it did not keep the whole first.
 
+Structural codes currently used:
+
+- `PART_MINUS_PART` — wrote a true part-minus-part equation instead of starting with the whole.
+- `WHOLE_NOT_FIRST` / `WRONG_WHOLE` — did not keep the displayed family whole first.
+- `TRUE_BUT_OTHER_FAMILY` — wrote a true equation from a different fact family.
+- `PARTS_NOT_SWITCHED` / `WRONG_PART_POSITION` — kept the whole first but did not use the matching switched parts.
+- `DUPLICATE_SUBTRACTION` — repeated one subtraction instead of writing both matching subtraction facts.
+- `ARITHMETIC_ERROR` — used the family whole and parts, but the subtraction arithmetic was wrong.
+
 **To analyze transfer:** group `answers` rows by `factFamilyId`, then compare first-try
 accuracy on `operation:"addition"` vs `operation:"subtraction"` within each family. A family
 where addition rows are strong but subtraction rows are weak is a secondary subtraction-drill
