@@ -30,7 +30,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFamilies` | string[] | family strings | `[]` | Families to show **more** often (weight ×3). Bad entries dropped. |
 | `avoidFamilies` | string[] | family strings | `[]` | Families to **exclude**. If this empties the pool, the app falls back to the full in-range set and warns. |
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
-| `problemTypeMix` | object | weights ≥ 0 | `{ADD:.30, SUB1:.27, SUB2:.27, CONNECT:.16}` | Relative likelihood of each problem type. **Auto-normalized** to sum 1, so you may pass plain weights like `{ADD:1, SUB1:2, SUB2:2, CONNECT:1}`. |
+| `problemTypeMix` | object | weights ≥ 0 | `{COMPANION:.34, ADD_TO_SUB:.34, NOT_FAMILY:.16, WHOLE_FIRST:.16}` | Relative likelihood of each problem type. **Auto-normalized** to sum 1, so you may pass plain weights like `{COMPANION:2, ADD_TO_SUB:2, NOT_FAMILY:1, WHOLE_FIRST:1}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
 | `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Offer the "Show the connection" animation after a correct ADD. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
@@ -39,6 +39,11 @@ and shows a non-blocking message — it never crashes or hangs.
 
 ### Problem types
 
+- `COMPANION` — given one subtraction, construct the matching subtraction while keeping
+  the whole first, e.g. `5 − 4 = 1` → `5 − 1 = 4`.
+- `ADD_TO_SUB` — given an addition, construct both matching subtractions.
+- `NOT_FAMILY` — choose which true subtraction belongs to the displayed whole/part family.
+- `WHOLE_FIRST` — identify the whole before constructing a subtraction.
 - `ADD` — solve the addition, then write both matching subtractions.
 - `SUB1` — solve `whole − a = b`, then write the matching addition.
 - `SUB2` — solve the mirror subtraction `whole − b = a`, then write the matching addition.
@@ -64,7 +69,7 @@ and shows a non-blocking message — it never crashes or hangs.
   "emphasizeFamilies": ["6+4=10", "7+3=10", "8+2=10"],
   "emphasizeFacts": ["10-6", "10-7", "10-8"],
   "avoidFamilies": [],
-  "problemTypeMix": { "ADD": 0.15, "SUB1": 0.3, "SUB2": 0.3, "CONNECT": 0.25 },
+  "problemTypeMix": { "COMPANION": 2, "ADD_TO_SUB": 2, "NOT_FAMILY": 1, "WHOLE_FIRST": 1 },
   "hintBehavior": { "autoHintAfterWrong": 1, "alwaysOfferMorph": true },
   "mastery": { "streakToMaster": 3, "demoteOnMiss": true },
   "ttsRate": 0.92
@@ -91,16 +96,16 @@ Each **problem record**:
 {
   "id", "timestamp", "sessionId", "schemaVersion",
   "mode": "factFamily",
-  "problemType": "SUB1",            // ADD | SUB1 | SUB2 | CONNECT
+  "problemType": "COMPANION",       // COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT
   "factFamilyId": "3+5=8",
   "operands": { "a": 3, "b": 5, "whole": 8 },
   "fact": "8-3",
   "factCanonical": "8-3=5",
-  "operation": "subtraction",       // addition | subtraction
-  "problemText": "8 apples. 3 are red. How many are green?",
+  "operation": "structure",         // structure | addition | subtraction
+  "problemText": "Make the matching subtraction. The whole stays first. The parts switch places.",
   "correctAnswer": 5,
-  "childAnswer": 4,
-  "errorValue": -1,                 // childAnswer - correctAnswer (0 if right). Clusters off-by-one / reversals.
+  "childAnswer": 1,
+  "errorValue": null,
   "attempts": 2,
   "correctFirstTry": false,
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
@@ -108,25 +113,46 @@ Each **problem record**:
   "morphViewed": false,
   "answers": [
     {
-      "id": "subA",
+      "id": "compWhole",
       "fact": "8-3",
-      "operation": "subtraction",
+      "operation": "structure",
+      "role": "whole",
+      "correctAnswer": 8,
+      "childAnswer": 5,
+      "finalAnswer": 8,
+      "correctFirstTry": false,
+      "errorCode": null,
+      "arithmeticCorrect": null,
+      "familyCorrect": null
+    },
+    {
+      "id": "compSub",
+      "fact": "8-3",
+      "operation": "structure",
+      "role": "subtrahend",
       "correctAnswer": 5,
       "childAnswer": 4,
       "finalAnswer": 5,
-      "correctFirstTry": false
+      "correctFirstTry": false,
+      "errorCode": null,
+      "arithmeticCorrect": null,
+      "familyCorrect": null
     }
   ],
+  "structuralErrorCodes": ["PART_MINUS_PART"],
+  "arithmeticCorrect": true,
+  "familyCorrect": false,
+  "scaffoldLevel": 2,
   "focusId": "addToSubTransfer",
   "focusLabel": "turn addition into subtraction",
-  "focusReason": "Addition was right but matching subtraction was missed.",
+  "focusReason": "Wrote a true part-minus-part equation instead of starting with the whole.",
   "focusTargets": { "facts": ["8-3"], "families": ["3+5=8"] },
   "deficitSignals": [
     {
-      "id": "addToSubTransfer",
+      "id": "wholeFirst",
       "family": "3+5=8",
       "facts": ["8-3"],
-      "reason": "addition was right but matching subtraction was missed"
+      "reason": "wrote a true part-minus-part equation instead of starting with the whole"
     }
   ],
   "timeSpentMs": 8421,
@@ -135,7 +161,11 @@ Each **problem record**:
 }
 ```
 
+**To analyze structure:** inspect `structuralErrorCodes` separately from ordinary arithmetic
+accuracy. `PART_MINUS_PART` means the submitted equation may be arithmetically true but does
+not belong to the displayed family because it did not keep the whole first.
+
 **To analyze transfer:** group `answers` rows by `factFamilyId`, then compare first-try
 accuracy on `operation:"addition"` vs `operation:"subtraction"` within each family. A family
-where addition rows are strong but subtraction rows are weak is a prime CONNECT or
-subtraction-drill candidate.
+where addition rows are strong but subtraction rows are weak is a secondary subtraction-drill
+candidate after the whole-first construction work.

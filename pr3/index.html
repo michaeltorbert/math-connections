@@ -100,6 +100,8 @@ button:disabled{cursor:default}
 .equation-row{display:flex;align-items:center;justify-content:center;gap:14px;min-height:58px;
   font-size:clamp(28px,6.8vw,42px);font-weight:700;color:#061b35}
 .equation-row.given{color:#17395f}
+.equation-row .label{font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);
+  align-self:flex-start;min-width:72px;text-align:right;padding-top:8px}
 .equation-row .op,.equation-row .equals{font-weight:700;color:#000}
 .blank{width:76px;height:46px;border:2px solid #b7c8db;border-radius:5px;background:#fff;
   font:700 clamp(24px,5.4vw,34px)/1 Arial,"Helvetica Neue",Helvetica,sans-serif;
@@ -110,6 +112,25 @@ button:disabled{cursor:default}
 .known{min-width:42px;text-align:center}
 .known.blankish{display:inline-flex;align-items:center;justify-content:center;width:76px;height:46px;
   border:2px solid #d8e2ee;border-radius:5px;background:#f8fafc}
+.known.whole-lock{border-color:#fbbf24;background:#fffbeb;color:#92400e}
+.number-bank{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:2px auto 18px}
+.tile{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:68px;min-height:58px;
+  border-radius:8px;border:2px solid #d8e2ee;background:#fff;font-weight:800;color:#061b35;
+  box-shadow:0 1px 0 rgba(15,35,63,0.07)}
+.tile .num{font-size:clamp(24px,5vw,34px);line-height:1}
+.tile .tag{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);margin-top:4px}
+.tile.whole{border-color:#fbbf24;background:#fffbeb}
+.choice-grid{display:grid;gap:10px;margin:0 auto 20px;max-width:520px}
+.choice-btn{border:2px solid #d8e2ee;background:#fff;border-radius:8px;padding:14px;
+  font-size:clamp(23px,5vw,34px);font-weight:800;color:#061b35}
+.choice-btn.on{border-color:var(--blue);background:#eff6ff}
+.choice-btn.right{border-color:var(--green);background:#ecfdf5}
+.choice-btn.wrong{border-color:var(--red);background:#fef2f2}
+.switch-explain{margin-top:14px;padding:13px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;
+  text-align:center;font-weight:800;color:#78350f}
+.switch-explain .line{font-size:clamp(18px,4vw,24px);margin-top:4px}
+.switch-explain .whole{color:#92400e}
+.switch-explain .part{color:#1268e3}
 @keyframes popIn{0%{transform:scale(.98);opacity:.4}100%{transform:scale(1);opacity:1}}
 
 .controls{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
@@ -195,7 +216,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.0.1";
+const APP_VERSION = "1.1.0";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -208,7 +229,9 @@ const KEYS = {
 };
 
 const MODES = ["factFamily"];                 // single, focused activity
-const PROBLEM_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
+const LEGACY_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
+const STRUCTURE_TYPES = ["COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
+const PROBLEM_TYPES = [...STRUCTURE_TYPES, ...LEGACY_TYPES];
 
 // Default adaptive config. Everything the AI loop can change lives here.
 const DEFAULT_CONFIG = Object.freeze({
@@ -221,7 +244,16 @@ const DEFAULT_CONFIG = Object.freeze({
   emphasizeFamilies: [],
   avoidFamilies: [],
   emphasizeFacts: [],
-  problemTypeMix: { ADD: 0.30, SUB1: 0.27, SUB2: 0.27, CONNECT: 0.16 },
+  problemTypeMix: {
+    COMPANION: 0.34,
+    ADD_TO_SUB: 0.34,
+    NOT_FAMILY: 0.16,
+    WHOLE_FIRST: 0.16,
+    ADD: 0,
+    SUB1: 0,
+    SUB2: 0,
+    CONNECT: 0,
+  },
   hintBehavior: { autoHintAfterWrong: 1, alwaysOfferMorph: true },
   mastery: { streakToMaster: 3, demoteOnMiss: true },
   ttsRate: 0.92,
@@ -257,27 +289,32 @@ const FOCUS_DEFS = Object.freeze({
   additionRecall: {
     label: "addition fact recall",
     plan: "Practice addition rows first, then connect them to the family.",
-    multipliers: { ADD: 4, SUB1: 1.1, SUB2: 1.1, CONNECT: 1.6 },
+    multipliers: { ADD: 3, ADD_TO_SUB: 2.4, COMPANION: 1.2, SUB1: 1, SUB2: 1, CONNECT: 1.2, NOT_FAMILY: .7, WHOLE_FIRST: .7 },
   },
   subtractionRecall: {
     label: "subtraction fact recall",
     plan: "Practice taking away before asking for the matching addition.",
-    multipliers: { ADD: 1.8, SUB1: 3.4, SUB2: 3.4, CONNECT: 1.6 },
+    multipliers: { COMPANION: 3, ADD_TO_SUB: 2.2, SUB1: 2.2, SUB2: 2.2, ADD: .8, CONNECT: 1, NOT_FAMILY: .7, WHOLE_FIRST: 1.4 },
   },
   addToSubTransfer: {
     label: "turn addition into subtraction",
-    plan: "Use one addition fact to write the matching take-away facts.",
-    multipliers: { ADD: 4.2, SUB1: .8, SUB2: .8, CONNECT: 3.2 },
+    plan: "Keep the whole first, then switch the two parts.",
+    multipliers: { COMPANION: 4.2, ADD_TO_SUB: 4, NOT_FAMILY: 1.8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: .6, SUB2: .6, CONNECT: 1.2 },
   },
   subToAddTransfer: {
     label: "turn subtraction into addition",
     plan: "Solve a take-away fact, then rebuild the matching addition.",
-    multipliers: { ADD: 1, SUB1: 4, SUB2: 4, CONNECT: 1.1 },
+    multipliers: { SUB1: 3, SUB2: 3, COMPANION: 2.2, ADD_TO_SUB: 1.4, ADD: .8, CONNECT: .8, NOT_FAMILY: 1, WHOLE_FIRST: 1 },
   },
   pictureToEquation: {
     label: "turn pictures into equations",
     plan: "Start from a small picture and write the equations it shows.",
-    multipliers: { ADD: 1.2, SUB1: .8, SUB2: .8, CONNECT: 5 },
+    multipliers: { CONNECT: 4, WHOLE_FIRST: 2.2, ADD_TO_SUB: 1.6, COMPANION: 1.2, ADD: 1, SUB1: .7, SUB2: .7, NOT_FAMILY: 1 },
+  },
+  wholeFirst: {
+    label: "find the whole before subtracting",
+    plan: "Pick the whole first; subtraction in this family starts with the whole.",
+    multipliers: { WHOLE_FIRST: 4.4, NOT_FAMILY: 3.2, COMPANION: 2.4, ADD_TO_SUB: 1.8, ADD: .5, SUB1: .7, SUB2: .7, CONNECT: 1 },
   },
 });
 
@@ -406,11 +443,18 @@ function factsOfFamilyId(id){
   const fam = familyFromId(id);
   return fam ? factsOfFamily(fam) : [];
 }
+function isStructuralType(type){ return STRUCTURE_TYPES.includes(type); }
+function needsDistinctParts(type){ return type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
 function relevantFact(type, fam){
   switch(type){
     case "ADD":  return `${fam.a}+${fam.b}`;
     case "SUB1": return `${fam.whole}-${fam.a}`;   // answer = b
     case "SUB2": return `${fam.whole}-${fam.b}`;   // answer = a
+    case "COMPANION":
+    case "ADD_TO_SUB":
+    case "NOT_FAMILY":
+    case "WHOLE_FIRST":
+      return `${fam.whole}-${fam.a}`;
     case "CONNECT": {
       // Drill the weaker of the two subtractions, with its addition shown.
       const f1 = `${fam.whole}-${fam.a}`, f2 = `${fam.whole}-${fam.b}`;
@@ -458,9 +502,17 @@ function factMasteryUpdate(fact, correctFirstTry){
 // needs practice. Honors config emphasis/avoid + an anti-repeat guard.
 function selectWeightedFamily(pool, type, cfg, focus){
   let candidates = pool.filter(f => !cfg.avoidFamilies.includes(f.id));
+  if (needsDistinctParts(type)){
+    const distinct = candidates.filter(f => f.a !== f.b);
+    if (distinct.length) candidates = distinct;
+  }
   if (!candidates.length){
     toast("Config avoids every family in range — using the full set.", true);
     candidates = pool.slice();
+    if (needsDistinctParts(type)){
+      const distinct = candidates.filter(f => f.a !== f.b);
+      if (distinct.length) candidates = distinct;
+    }
   }
   const recent = new Set(state.recentMisses);
   const targetFamilies = new Set((focus && focus.targetFamilies) || []);
@@ -491,6 +543,28 @@ function weightedType(mix){
   let r = Math.random() * total;
   for (const [t, w] of entries){ r -= w; if (r <= 0) return t; }
   return "ADD";
+}
+
+function buildSessionTypePlan(cfg, focus){
+  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
+  const mix = focus ? focusedTypeMix(cfg.problemTypeMix, focus) : cfg.problemTypeMix;
+  const entries = PROBLEM_TYPES
+    .map(t => ({ type: t, weight: Math.max(0, Number(mix[t]) || 0) }))
+    .filter(e => e.weight > 0);
+  if (!entries.length) return Array.from({ length }, () => weightedType(DEFAULT_CONFIG.problemTypeMix));
+  const total = entries.reduce((s, e) => s + e.weight, 0);
+  let used = 0;
+  for (const e of entries){
+    const exact = e.weight / total * length;
+    e.count = Math.floor(exact);
+    e.remainder = exact - e.count;
+    used += e.count;
+  }
+  entries.sort((a,b) => b.remainder - a.remainder);
+  for (let i = 0; used < length; i++, used++) entries[i % entries.length].count++;
+  const plan = [];
+  for (const e of entries) for (let i = 0; i < e.count; i++) plan.push(e.type);
+  return shuffled(plan).slice(0, length);
 }
 
 function focusedTypeMix(mix, focus){
@@ -539,6 +613,19 @@ function signalWeight(record){
 
 function classifyDeficitSignals(record){
   if (!record || record.correctFirstTry) return [];
+  if (Array.isArray(record.structuralErrorCodes) && record.structuralErrorCodes.length){
+    return record.structuralErrorCodes.map(code => ({
+      id: focusForErrorCode(code),
+      facts: factsOfFamilyId(record.factFamilyId),
+      family: record.factFamilyId || familyIdForFact(record.fact),
+      reason: code === "PART_MINUS_PART"
+        ? "wrote a true part-minus-part equation instead of starting with the whole"
+        : code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY"
+          ? "did not keep the family whole in the first subtraction position"
+          : "did not switch the two parts to make the companion subtraction",
+      weight: signalWeight(record) + (code === "PART_MINUS_PART" ? .8 : .4),
+    }));
+  }
   const answers = answerEntries(record);
   const missed = answers.filter(a => !a.correctFirstTry);
   if (!missed.length) return [];
@@ -639,6 +726,7 @@ function buildDeficitProfile(records){
     const famId = r.factFamilyId || familyIdForFact(r.fact);
     const fam = profile.familyStats[famId] || (profile.familyStats[famId] = { add: { seen:0, correct:0 }, sub: { seen:0, correct:0 } });
     for (const a of answerEntries(r)){
+      if (a.operation !== "addition" && a.operation !== "subtraction") continue;
       addRatioStat(profile.factStats, a.fact, a.correctFirstTry);
       const slot = a.operation === "subtraction" ? fam.sub : fam.add;
       slot.seen++;
@@ -717,6 +805,98 @@ function derivePracticeFocus(records){
     score: picked.score,
     samples: profile.total,
   }, def);
+}
+
+function deriveScaffoldLevel(records){
+  const recent = (records || state.problemLog)
+    .filter(r => r && isStructuralType(r.problemType))
+    .slice(-18);
+  if (recent.length < 8) return 1;
+  const independent = recent.filter(r => r.correctFirstTry && !r.hintUsed).length;
+  const rate = independent / recent.length;
+  if (recent.length >= 14 && rate >= .82) return 4;
+  if (rate >= .72) return 3;
+  return 2;
+}
+
+function shuffled(arr){
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function buildNumberTiles(fam, revealWhole){
+  return [
+    { value: fam.whole, role: "whole", label: revealWhole ? "Whole" : "" },
+    { value: fam.a, role: "part", label: revealWhole ? "Part" : "" },
+    { value: fam.b, role: "part", label: revealWhole ? "Part" : "" },
+  ];
+}
+
+function structuralRowValues(row, results){
+  const byId = Object.fromEntries(results.map(r => [r.id, r.submitted]));
+  return row.fieldIds.map(id => byId[id]);
+}
+
+function allNumbers(values){
+  return values.every(v => typeof v === "number" && Number.isInteger(v));
+}
+
+function structuralErrorsForProblem(p, results){
+  if (!isStructuralType(p.problemType)) return [];
+  if (p.choiceOptions){
+    const result = results[0];
+    return result && !result.isCorrect && result.errorCode ? [result.errorCode] : [];
+  }
+  const errors = [];
+  for (const row of p.constructRows || []){
+    const values = structuralRowValues(row, results);
+    const expected = row.expected || [];
+    if (!allNumbers(values)) continue;
+    const [whole, subtrahend, difference] = values;
+    if (whole !== p.whole && [p.a, p.b].includes(whole) &&
+        [p.a, p.b].includes(subtrahend) && whole - subtrahend === difference){
+      errors.push("PART_MINUS_PART");
+      continue;
+    }
+    if (whole !== expected[0]) errors.push("WHOLE_NOT_FIRST");
+    if (whole === expected[0] && (subtrahend !== expected[1] || difference !== expected[2])){
+      errors.push(row.skill === "companionSubtraction" ? "PARTS_NOT_SWITCHED" : "WRONG_PART_POSITION");
+    }
+    if (whole - subtrahend === difference && whole !== p.whole){
+      errors.push("TRUE_BUT_OTHER_FAMILY");
+    }
+  }
+  return [...new Set(errors)];
+}
+
+function structuralArithmeticCorrect(p, results){
+  if (!isStructuralType(p.problemType)) return null;
+  if (p.choiceOptions){
+    const selected = p.choiceOptions.find(o => o.id === results[0]?.submitted);
+    return selected ? Boolean(selected.arithmeticCorrect) : null;
+  }
+  const rows = p.constructRows || [];
+  if (!rows.length) return null;
+  return rows.every(row => {
+    const values = structuralRowValues(row, results);
+    return allNumbers(values) && values[0] - values[1] === values[2];
+  });
+}
+
+function structuralFamilyCorrect(p, results){
+  if (!isStructuralType(p.problemType)) return null;
+  if (p.choiceOptions) return Boolean(results[0]?.isCorrect);
+  return results.every(r => r.isCorrect);
+}
+
+function focusForErrorCode(code){
+  if (code === "PART_MINUS_PART" || code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY") return "wholeFirst";
+  if (code === "PARTS_NOT_SWITCHED" || code === "WRONG_PART_POSITION") return "addToSubTransfer";
+  return "addToSubTransfer";
 }
 
 /* =========================================================================
@@ -862,7 +1042,7 @@ function buildStory(type, fam, knownPart, knownIsA){
   };
 }
 
-function makeField(id, before, expected, after, fact, operation){
+function makeField(id, before, expected, after, fact, operation, extra){
   return {
     id,
     before,
@@ -871,6 +1051,7 @@ function makeField(id, before, expected, after, fact, operation){
     fact,
     operation,
     factCanonical: `${before.replace(/\s/g, "")}${expected}${after ? after.replace(/\s/g, "") : ""}`,
+    ...(extra || {}),
   };
 }
 
@@ -878,17 +1059,129 @@ function equationText(field){
   return `${field.before} ${field.expected}${field.after ? " " + field.after : ""}`.replace(/\s+/g, " ").trim();
 }
 
-function generateFactFamilyProblem(){
+function makeStructuralField(id, expected, role, fact, extra){
+  return makeField(id, "", expected, "", fact, "structure", {
+    role,
+    tracksMastery: false,
+    ...(extra || {}),
+  });
+}
+
+function makeConstructRow(label, fieldIds, expected, skill){
+  return { label, fieldIds, expected, skill };
+}
+
+function addField(fields, id, expected, role, fact){
+  const field = makeStructuralField(id, expected, role, fact);
+  fields.push(field);
+  return { type: "field", id };
+}
+
+function knownPart(value, cls){
+  return { type: "text", text: String(value), className: cls || "known" };
+}
+
+function generateFactFamilyProblem(typeOverride){
   const cfg = state.config;
   const pool = familiesInRange(cfg);
   const focus = derivePracticeFocus();
-  const type = weightedType(focusedTypeMix(cfg.problemTypeMix, focus));
+  const type = typeOverride || weightedType(focusedTypeMix(cfg.problemTypeMix, focus));
   const fam = selectWeightedFamily(pool, type, cfg, focus);
   const fact = relevantFact(type, fam);
   const story = buildStory(type, fam, fam.a, true);
+  const scaffoldLevel = deriveScaffoldLevel();
   let prompt, givenEquation = "", fields = [], visual = false, operation = "addition";
+  let constructRows = null, numberTiles = null, choiceOptions = null;
 
-  if (type === "ADD"){
+  if (type === "COMPANION"){
+    operation = "structure";
+    const givenSub = Math.random() < .5 ? fam.a : fam.b;
+    const givenAnswer = fam.whole - givenSub;
+    const companionSub = givenAnswer;
+    const companionAnswer = givenSub;
+    const companionFact = `${fam.whole}-${companionSub}`;
+    prompt = "Make the matching subtraction. The whole stays first. The parts switch places.";
+    givenEquation = `${fam.whole} − ${givenSub} = ${givenAnswer}`;
+    numberTiles = shuffled(buildNumberTiles(fam, scaffoldLevel <= 2));
+    constructRows = [makeConstructRow("match", ["compWhole", "compSub", "compAnswer"], [fam.whole, companionSub, companionAnswer], "companionSubtraction")];
+    fields = [];
+    const rowParts = [];
+    if (scaffoldLevel === 1){
+      fields.push(makeStructuralField("compWhole", fam.whole, "whole", companionFact, { locked: true }));
+      rowParts.push(knownPart(fam.whole, "known blankish whole-lock"));
+    } else {
+      rowParts.push(addField(fields, "compWhole", fam.whole, "whole", companionFact));
+    }
+    rowParts.push({ type:"text", text:"−", className:"op" });
+    rowParts.push(addField(fields, "compSub", companionSub, "subtrahend", companionFact));
+    rowParts.push({ type:"text", text:"=", className:"equals" });
+    rowParts.push(addField(fields, "compAnswer", companionAnswer, "difference", companionFact));
+    constructRows[0].parts = rowParts;
+  } else if (type === "ADD_TO_SUB"){
+    operation = "structure";
+    prompt = "Use the addition to make both matching subtractions.";
+    givenEquation = `${fam.a} + ${fam.b} = ${fam.whole}`;
+    numberTiles = shuffled(buildNumberTiles(fam, scaffoldLevel <= 2));
+    fields = [];
+    constructRows = [
+      makeConstructRow("first", ["addSubWholeA", "addSubPartA", "addSubAnswerA"], [fam.whole, fam.a, fam.b], "additionToSubtraction"),
+      makeConstructRow("second", ["addSubWholeB", "addSubPartB", "addSubAnswerB"], [fam.whole, fam.b, fam.a], "additionToSubtraction"),
+    ];
+    constructRows.forEach((row, idx) => {
+      const [whole, subtrahend, answer] = row.expected;
+      const rowFact = `${whole}-${subtrahend}`;
+      const ids = row.fieldIds;
+      row.parts = [];
+      if (scaffoldLevel === 1){
+        fields.push(makeStructuralField(ids[0], whole, "whole", rowFact, { locked: true }));
+        row.parts.push(knownPart(whole, "known blankish whole-lock"));
+      } else {
+        row.parts.push(addField(fields, ids[0], whole, "whole", rowFact));
+      }
+      row.parts.push({ type:"text", text:"−", className:"op" });
+      row.parts.push(addField(fields, ids[1], subtrahend, "subtrahend", rowFact));
+      row.parts.push({ type:"text", text:"=", className:"equals" });
+      row.parts.push(addField(fields, ids[2], answer, "difference", rowFact));
+      row.label = idx === 0 ? "one way" : "switch";
+    });
+  } else if (type === "NOT_FAMILY"){
+    operation = "structure";
+    const correctSub = Math.random() < .5 ? fam.a : fam.b;
+    const correctAnswer = fam.whole - correctSub;
+    const partWhole = Math.max(fam.a, fam.b);
+    const partSub = Math.min(fam.a, fam.b);
+    prompt = "Which subtraction belongs to this family?";
+    numberTiles = shuffled(buildNumberTiles(fam, true));
+    choiceOptions = shuffled([
+      {
+        id: "family",
+        text: `${fam.whole} − ${correctSub} = ${correctAnswer}`,
+        isCorrect: true,
+        arithmeticCorrect: true,
+        familyCorrect: true,
+      },
+      {
+        id: "partMinusPart",
+        text: `${partWhole} − ${partSub} = ${partWhole - partSub}`,
+        isCorrect: false,
+        arithmeticCorrect: true,
+        familyCorrect: false,
+        errorCode: "PART_MINUS_PART",
+        feedback: `That equation is true, but it belongs to a different family. This family's whole is ${fam.whole}, so subtraction starts with ${fam.whole}.`,
+      },
+    ]);
+    fields = [makeStructuralField("choice", "family", "familyChoice", `${fam.whole}-${correctSub}`)];
+  } else if (type === "WHOLE_FIRST"){
+    operation = "structure";
+    prompt = "Which number is the whole? Subtraction in this family starts with the whole.";
+    numberTiles = shuffled(buildNumberTiles(fam, false));
+    choiceOptions = shuffled([
+      { id: "whole", text: String(fam.whole), isCorrect: true, arithmeticCorrect: null, familyCorrect: true },
+      { id: "partA", text: String(fam.a), isCorrect: false, arithmeticCorrect: null, familyCorrect: false, errorCode: "WRONG_WHOLE", feedback: `${fam.a} is a part. The whole is ${fam.whole}.` },
+      { id: "partB", text: String(fam.b), isCorrect: false, arithmeticCorrect: null, familyCorrect: false, errorCode: "WRONG_WHOLE", feedback: `${fam.b} is a part. The whole is ${fam.whole}.` },
+    ]);
+    fields = [makeStructuralField("choice", "whole", "wholeChoice", `${fam.whole}-${fam.a}`)];
+  } else if (type === "ADD"){
     prompt = "Solve the addition. Then write two subtractions that match.";
     fields = [
       makeField("sum", `${fam.a} + ${fam.b} =`, fam.whole, "", `${fam.a}+${fam.b}`, "addition"),
@@ -919,7 +1212,12 @@ function generateFactFamilyProblem(){
     ];
   }
 
-  const primary = fields[0];
+  const primary = fields[0] || makeField("meta", "", fam.whole, "", fact, operation);
+  const canonical = constructRows
+    ? constructRows.map(row => `${row.expected[0]}-${row.expected[1]}=${row.expected[2]}`).join(";")
+    : choiceOptions
+      ? (choiceOptions.find(o => o.isCorrect)?.text || "")
+      : equationText(primary).replace(/\s/g, "");
 
   return {
     id: uid(),
@@ -928,7 +1226,7 @@ function generateFactFamilyProblem(){
     factFamilyId: fam.id,
     a: fam.a, b: fam.b, whole: fam.whole,
     fact: primary.fact,
-    factCanonical: equationText(primary).replace(/\s/g, ""),
+    factCanonical: canonical.replace(/\s/g, ""),
     operation,
     knownPart: type === "ADD" ? null : (type === "SUB2" ? fam.b : fam.a),
     knownIsA: type !== "SUB2",
@@ -937,6 +1235,10 @@ function generateFactFamilyProblem(){
     givenEquation,
     visual,
     fields,
+    constructRows,
+    numberTiles,
+    choiceOptions,
+    scaffoldLevel,
     correctAnswer: primary.expected,
     range: clamp(cfg.numberRange.max, 5, 20),
     configId: cfg.configId || null,
@@ -951,10 +1253,13 @@ function generateFactFamilyProblem(){
    9. SESSION FLOW
    ========================================================================= */
 function startSession(){
+  const focus = derivePracticeFocus();
   state.session = {
     id: uid(),
     startedAt: nowIso(),
     length: state.config.sessionLength,
+    typePlan: buildSessionTypePlan(state.config, focus.score > 0 ? focus : null),
+    focusId: focus.id,
     index: 0,                 // 0-based problem number within session
     results: [],              // booleans (correctFirstTry) for the dots
   };
@@ -963,7 +1268,8 @@ function startSession(){
 }
 
 function beginNextProblem(){
-  state.problem = generateFactFamilyProblem();
+  const type = state.session && state.session.typePlan ? state.session.typePlan[state.session.index] : null;
+  state.problem = generateFactFamilyProblem(type);
   state.lastKey = state.problem.factFamilyId + "|" + state.problem.problemType;
   state.view = {
     answers: {},
@@ -972,6 +1278,7 @@ function beginNextProblem(){
     firstAnswers: null,
     firstFieldResults: null,
     fieldResults: {},
+    selectedChoice: null,
     hintUsed: false,
     morphViewed: false,
     showMorph: false,
@@ -992,10 +1299,52 @@ function checkFactFamily(){
   const p = state.problem, v = state.view;
   if (v.solved) return;
   v.attempts++;
+  if (p.choiceOptions){
+    const selected = p.choiceOptions.find(o => o.id === v.selectedChoice) || null;
+    const correct = p.choiceOptions.find(o => o.isCorrect);
+    const result = {
+      id: "choice",
+      fact: p.fact,
+      operation: "structure",
+      expected: correct ? correct.id : null,
+      submitted: selected ? selected.id : null,
+      isCorrect: Boolean(selected && selected.isCorrect),
+      errorCode: selected && selected.errorCode ? selected.errorCode : (selected ? "WRONG_CHOICE" : "NO_CHOICE"),
+      arithmeticCorrect: selected ? selected.arithmeticCorrect : null,
+      familyCorrect: selected ? selected.familyCorrect : false,
+      tracksMastery: false,
+    };
+    if (v.firstAnswers === null){
+      v.firstAnswers = { choice: result.submitted };
+      v.firstAnswer = result.submitted;
+      v.firstFieldResults = [Object.assign({}, result)];
+    }
+    v.answers = { choice: result.submitted };
+    v.fieldResults = { choice: result };
+    if (result.isCorrect){
+      v.solved = true;
+      v.feedback = { kind: "correct", text: p.problemType === "WHOLE_FIRST" ? "Yes. That is the whole." : "Yes. That subtraction belongs to this family." };
+      speak(v.feedback.text);
+    } else {
+      const msg = selected && selected.feedback ? selected.feedback : "Choose the equation that starts with this family's whole.";
+      v.feedback = { kind: "wrong", text: msg };
+      speak(msg);
+      if (state.config.hintBehavior.autoHintAfterWrong &&
+          v.attempts >= state.config.hintBehavior.autoHintAfterWrong){
+        v.hintUsed = true;
+      }
+    }
+    render();
+    return;
+  }
   const answers = {};
   for (const field of p.fields){
-    const input = document.querySelector(`[data-answer-id="${field.id}"]`);
-    answers[field.id] = input ? input.value.trim() : "";
+    if (field.locked){
+      answers[field.id] = String(field.expected);
+    } else {
+      const input = document.querySelector(`[data-answer-id="${field.id}"]`);
+      answers[field.id] = input ? input.value.trim() : "";
+    }
   }
   v.answers = answers;
   const results = p.fields.map(field => {
@@ -1005,14 +1354,18 @@ function checkFactFamily(){
       id: field.id,
       fact: field.fact,
       operation: field.operation,
+      role: field.role || null,
       expected: field.expected,
       submitted: raw === "" ? null : numeric,
       isCorrect: raw !== "" && Number.isInteger(numeric) && numeric === field.expected,
+      tracksMastery: field.tracksMastery !== false,
+      locked: Boolean(field.locked),
     };
   });
   if (v.firstAnswers === null){
     v.firstAnswers = Object.assign({}, answers);
-    v.firstAnswer = results[0] ? results[0].submitted : null;
+    const primaryResult = results.find(r => !r.locked) || results[0];
+    v.firstAnswer = primaryResult ? primaryResult.submitted : null;
     v.firstFieldResults = results.map(r => Object.assign({}, r));
   }
   v.fieldResults = Object.fromEntries(results.map(r => [r.id, r]));
@@ -1020,10 +1373,11 @@ function checkFactFamily(){
 
   if (allCorrect){
     v.solved = true;
-    v.feedback = { kind: "correct", text: pickPraise() };
-    speak(`${v.feedback.text} These equations match.`);
+    v.feedback = { kind: "correct", text: isStructuralType(p.problemType) ? "Yes. The whole stayed first and the parts switched." : pickPraise() };
+    speak(isStructuralType(p.problemType) ? v.feedback.text : `${v.feedback.text} These equations match.`);
   } else {
-    v.feedback = { kind: "wrong", text: encourage() };
+    const structuralErrors = structuralErrorsForProblem(p, results);
+    v.feedback = { kind: "wrong", text: structuralFeedback(p, structuralErrors) };
     speak(v.feedback.text);
     if (state.config.hintBehavior.autoHintAfterWrong &&
         v.attempts >= state.config.hintBehavior.autoHintAfterWrong){
@@ -1035,11 +1389,23 @@ function checkFactFamily(){
 
 function pickPraise(){ return ["Great job!","You got it!","Nice work!","Brilliant!","Way to go!"][rand(0,4)]; }
 function encourage(){ return `Check each equation. The same three numbers should match.`; }
+function structuralFeedback(p, codes){
+  if (codes.includes("PART_MINUS_PART") || codes.includes("TRUE_BUT_OTHER_FAMILY")){
+    return `That equation can be true, but it belongs to a different family. This family's whole is ${p.whole}, so subtraction starts with ${p.whole}.`;
+  }
+  if (codes.includes("WHOLE_NOT_FIRST") || codes.includes("WRONG_WHOLE")){
+    return `The whole is ${p.whole}. Put the whole first in the subtraction.`;
+  }
+  if (codes.includes("PARTS_NOT_SWITCHED") || codes.includes("WRONG_PART_POSITION")){
+    return `Keep ${p.whole} first. Then switch the two parts.`;
+  }
+  return encourage();
+}
 
 function showHint(){
   state.view.hintUsed = true;
   const p = state.problem;
-  const msg = `${p.a}, ${p.b}, and ${p.whole} belong together. Addition puts the parts together; subtraction starts with the total.`;
+  const msg = `${p.a}, ${p.b}, and ${p.whole} belong together. ${p.whole} is the whole, so subtraction starts with ${p.whole}. The parts, ${p.a} and ${p.b}, switch places.`;
   speak(msg);
   render();
 }
@@ -1057,6 +1423,9 @@ function recordProblemAndAdvance(){
   const p = state.problem, v = state.view;
   const firstResults = v.firstFieldResults || [];
   const correctFirstTry = firstResults.length > 0 && firstResults.every(result => result.isCorrect);
+  const firstAnswerIsNumber = typeof v.firstAnswer === "number" && Number.isFinite(v.firstAnswer);
+  const correctAnswerIsNumber = !isStructuralType(p.problemType) && typeof p.correctAnswer === "number" && Number.isFinite(p.correctAnswer);
+  const structuralErrorCodes = structuralErrorsForProblem(p, firstResults);
   const record = {
     id: p.id,
     timestamp: nowIso(),
@@ -1072,7 +1441,7 @@ function recordProblemAndAdvance(){
     problemText: p.problemText,
     correctAnswer: p.correctAnswer,
     childAnswer: v.firstAnswer,
-    errorValue: (v.firstAnswer == null ? null : v.firstAnswer - p.correctAnswer),
+    errorValue: (firstAnswerIsNumber && correctAnswerIsNumber ? v.firstAnswer - p.correctAnswer : null),
     answers: p.fields.map(field => {
       const result = (v.fieldResults && v.fieldResults[field.id]) || {};
       const first = firstResults.find(item => item.id === field.id) || {};
@@ -1080,12 +1449,20 @@ function recordProblemAndAdvance(){
         id: field.id,
         fact: field.fact,
         operation: field.operation,
+        role: field.role || null,
         correctAnswer: field.expected,
         childAnswer: first.submitted == null ? null : first.submitted,
         finalAnswer: result.submitted == null ? null : result.submitted,
         correctFirstTry: Boolean(first.isCorrect),
+        errorCode: first.errorCode || null,
+        arithmeticCorrect: first.arithmeticCorrect == null ? null : first.arithmeticCorrect,
+        familyCorrect: first.familyCorrect == null ? null : first.familyCorrect,
       };
     }),
+    structuralErrorCodes,
+    arithmeticCorrect: structuralArithmeticCorrect(p, firstResults),
+    familyCorrect: structuralFamilyCorrect(p, firstResults),
+    scaffoldLevel: p.scaffoldLevel,
     attempts: v.attempts,
     correctFirstTry,
     strategyTag: v.strategyTag || null,
@@ -1107,10 +1484,12 @@ function recordProblemAndAdvance(){
   }));
   state.problemLog.push(record);
   for (const result of firstResults){
-    factMasteryUpdate(result.fact, Boolean(result.isCorrect));
+    if (result.tracksMastery !== false && result.fact){
+      factMasteryUpdate(result.fact, Boolean(result.isCorrect));
+    }
   }
   // keep a short rolling memory of recent misses for the weighting
-  for (const result of firstResults.filter(r => !r.isCorrect)){
+  for (const result of firstResults.filter(r => !r.isCorrect && r.fact)){
     state.recentMisses.push(result.fact);
   }
   if (state.recentMisses.length > 6) state.recentMisses = state.recentMisses.slice(-6);
@@ -1131,7 +1510,7 @@ function finishSession(){
   };
   state.sessionLog.push({
     id: s.id, mode: "factFamily", startedAt: s.startedAt, endedAt: s.endedAt,
-    length: s.length, summary: s.summary,
+    length: s.length, typePlan: s.typePlan || [], focusId: s.focusId || null, summary: s.summary,
   });
   persistLogs();
   state.screen = "summary";
@@ -1147,6 +1526,9 @@ function chooseStrategy(tag){
   state.view.strategyTag = tag;
   state.overlay = null;
   recordProblemAndAdvance();
+}
+function shouldAskStrategy(){
+  return state.session && state.session.index + 1 >= state.session.length;
 }
 
 /* =========================================================================
@@ -1259,6 +1641,66 @@ function renderEquationField(field){
   return row;
 }
 
+function renderNumberBank(p){
+  const bank = el("div", "number-bank");
+  for (const tile of p.numberTiles || []){
+    const t = el("div", "tile" + (tile.role === "whole" && tile.label ? " whole" : ""));
+    t.appendChild(el("span", "num", String(tile.value)));
+    if (tile.label) t.appendChild(el("span", "tag", tile.label));
+    bank.appendChild(t);
+  }
+  return bank;
+}
+
+function renderConstructInput(field){
+  const input = document.createElement("input");
+  input.className = "blank";
+  input.type = "number";
+  input.inputMode = "numeric";
+  input.min = "0";
+  input.max = "20";
+  input.dataset.answerId = field.id;
+  input.value = state.view.answers[field.id] || "";
+  input.disabled = state.view.solved;
+  input.setAttribute("aria-label", field.role ? `missing ${field.role}` : "missing number");
+  const result = state.view.fieldResults[field.id];
+  if (result) input.classList.add(result.isCorrect ? "right" : "wrong");
+  input.oninput = () => { state.view.answers[field.id] = input.value; };
+  return input;
+}
+
+function renderConstructRows(p){
+  const set = el("div", "equation-set");
+  const fieldsById = Object.fromEntries(p.fields.map(f => [f.id, f]));
+  for (const rowDef of p.constructRows || []){
+    const row = el("div", "equation-row");
+    if (rowDef.label) row.appendChild(el("span", "label", rowDef.label));
+    for (const part of rowDef.parts || []){
+      if (part.type === "field"){
+        row.appendChild(renderConstructInput(fieldsById[part.id]));
+      } else {
+        row.appendChild(el("span", part.className || "known", part.text));
+      }
+    }
+    set.appendChild(row);
+  }
+  return set;
+}
+
+function renderChoiceOptions(p){
+  const grid = el("div", "choice-grid");
+  const result = state.view.fieldResults.choice;
+  for (const option of p.choiceOptions || []){
+    const b = el("button", "choice-btn", option.text);
+    if (state.view.selectedChoice === option.id) b.classList.add("on");
+    if (result && state.view.selectedChoice === option.id) b.classList.add(result.isCorrect ? "right" : "wrong");
+    b.disabled = state.view.solved;
+    b.onclick = () => { state.view.selectedChoice = option.id; render(); };
+    grid.appendChild(b);
+  }
+  return grid;
+}
+
 function appendEquationPart(row, text){
   if (!text) return;
   for (const token of text.trim().split(/\s+/)){
@@ -1275,6 +1717,15 @@ function renderEquationSet(p){
       given.appendChild(el("span", token === "+" || token === "−" ? "op" : token === "=" ? "equals" : "known", token));
     }
     set.appendChild(given);
+  }
+  if (p.numberTiles) set.appendChild(renderNumberBank(p));
+  if (p.choiceOptions){
+    set.appendChild(renderChoiceOptions(p));
+    return set;
+  }
+  if (p.constructRows){
+    set.appendChild(renderConstructRows(p));
+    return set;
   }
   for (const field of p.fields) set.appendChild(renderEquationField(field));
   return set;
@@ -1312,6 +1763,9 @@ function renderPlay(){
   }
 
   // the connection reveal (morph) — sits right under the praise banner
+  if (v.solved && isStructuralType(p.problemType)){
+    card.appendChild(renderSwitchExplanation(p));
+  }
   if (v.showMorph){
     card.appendChild(renderConnection(p));
   }
@@ -1325,13 +1779,13 @@ function renderPlay(){
     check.onclick = debounce(checkFactFamily, 350);
     ctr.appendChild(hint); ctr.appendChild(check);
   } else {
-    if (state.config.hintBehavior.alwaysOfferMorph && !v.showMorph){
+    if (!isStructuralType(p.problemType) && state.config.hintBehavior.alwaysOfferMorph && !v.showMorph){
       const m = el("button", "btn purple", "✨ Show the connection");
       m.onclick = doMorph;
       ctr.appendChild(m);
     }
     const next = el("button", "btn green", state.session.index + 1 >= state.session.length ? "🎉 Finish" : "Next →");
-    next.onclick = () => openStrategy();
+    next.onclick = () => shouldAskStrategy() ? openStrategy() : recordProblemAndAdvance();
     ctr.appendChild(next);
   }
   card.appendChild(ctr);
@@ -1367,17 +1821,26 @@ function renderConnection(p){
   return box;
 }
 
+function renderSwitchExplanation(p){
+  const box = el("div", "switch-explain");
+  box.appendChild(el("div", null, "The whole stays first. The parts switch places."));
+  const line = el("div", "line");
+  line.innerHTML = `<span class="whole">${p.whole}</span> − <span class="part">${p.a}</span> = <span class="part">${p.b}</span>`
+    + ` &nbsp; and &nbsp; <span class="whole">${p.whole}</span> − <span class="part">${p.b}</span> = <span class="part">${p.a}</span>`;
+  box.appendChild(line);
+  return box;
+}
+
 /* ---------- SUMMARY ---------- */
 function renderSummary(){
   const s = state.session;
   const wrap = el("div");
   wrap.appendChild(appbar("👪 Grown-ups", () => { state.screen = "parent"; render(); }));
   const card = el("div", "card center");
-  const pct = s.summary.total ? Math.round(100 * s.summary.firstTry / s.summary.total) : 0;
   card.innerHTML =
-    `<div class="big-emoji" style="font-size:64px">${pct >= 80 ? "🌟" : pct >= 50 ? "😀" : "💪"}</div>` +
+    `<div class="big-emoji" style="font-size:64px">🌟</div>` +
     `<h1 style="font-size:clamp(24px,6vw,34px);color:var(--blue-d);font-weight:900;margin:6px 0">Session done!</h1>` +
-    `<p style="font-size:clamp(17px,4vw,22px);font-weight:800">You got <b>${s.summary.firstTry}</b> of <b>${s.summary.total}</b> on the first try.</p>`;
+    `<p style="font-size:clamp(17px,4vw,22px);font-weight:800">You completed <b>${s.summary.total}</b> connections.</p>`;
   const row = el("div", "controls");
   const again = el("button", "btn green big", "▶ Play again");
   again.onclick = startSession;
@@ -1386,7 +1849,7 @@ function renderSummary(){
   row.appendChild(again); row.appendChild(home);
   card.appendChild(row);
   wrap.appendChild(card);
-  speak(`You got ${s.summary.firstTry} out of ${s.summary.total} on the first try. ${pct>=80?'Amazing!':'Keep going!'}`);
+  speak(`You completed ${s.summary.total} connections.`);
   return wrap;
 }
 
@@ -1435,6 +1898,10 @@ function renderParent(){
   card.appendChild(stats);
 
   card.appendChild(renderFocusSummary(focus));
+
+  // structural errors
+  card.appendChild(el("div", "section-title", "Whole-first structure"));
+  card.appendChild(renderStructureSignals(ff));
 
   // add vs sub transfer
   card.appendChild(el("div", "section-title", "Add ↔ Subtract (does it transfer?)"));
@@ -1496,6 +1963,25 @@ function renderFocusSummary(focus){
   return box;
 }
 
+function renderStructureSignals(ff){
+  const wrap = el("div", "transfer");
+  const counts = {};
+  for (const r of ff){
+    for (const code of r.structuralErrorCodes || []) counts[code] = (counts[code] || 0) + 1;
+  }
+  const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  if (!entries.length){
+    wrap.appendChild(el("div", "muted", ff.length ? "No structural misses logged yet." : "No data yet — play a session!"));
+    return wrap;
+  }
+  for (const [code, count] of entries){
+    const c = el("div", "tcell");
+    c.innerHTML = `<b>${code}</b><br>${count} time${count === 1 ? "" : "s"}`;
+    wrap.appendChild(c);
+  }
+  return wrap;
+}
+
 function masteredCount(){ return Object.values(state.mastery).filter(m => m.box >= 4).length; }
 
 function renderTransfer(ff){
@@ -1504,6 +1990,7 @@ function renderTransfer(ff){
   for (const r of ff){
     const f = byFam[r.factFamilyId] || (byFam[r.factFamilyId] = { add:[0,0], sub:[0,0] });
     for (const a of answerEntries(r)){
+      if (a.operation !== "addition" && a.operation !== "subtraction") continue;
       const slot = a.operation === "subtraction" ? f.sub : f.add;
       slot[1]++;
       if (a.correctFirstTry) slot[0]++;
@@ -1648,20 +2135,25 @@ const ANALYSIS_INSTRUCTIONS =
 ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=3).
 The DATA below is JSON exported from his practice app.
 
-Each problem record has: problemType (ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"),
-fact (e.g. "8-3"), operation, correctAnswer, childAnswer, errorValue (childAnswer - correctAnswer),
-answers[] (one row per equation blank), attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs,
-focusId/focusReason (why the app chose that practice), and deficitSignals[] (what kind of miss it saw).
+Each problem record has: problemType (COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST |
+ADD | SUB1 | SUB2 | CONNECT), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"), operation,
+correctAnswer, childAnswer, errorValue (for arithmetic-answer problems), answers[] (one row
+per equation blank or choice), structuralErrorCodes[], arithmeticCorrect, familyCorrect,
+scaffoldLevel, attempts, correctFirstTry, hintUsed, morphViewed, timeSpentMs, focusId/focusReason
+(why the app chose that practice), and deficitSignals[] (what kind of miss it saw).
 
 Please find:
 1. Which specific FACTS and FACT FAMILIES are weak (low correctFirstTry, many attempts, repeated
    errorValue patterns such as off-by-one (+/-1) or reversals).
 2. What KIND of weakness is showing up: addition fact recall, subtraction fact recall,
-   addition->subtraction transfer, subtraction->addition transfer, or picture->equation mapping.
-3. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+   addition->subtraction transfer, subtraction->addition transfer, picture->equation mapping,
+   or whole-first structure.
+3. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
+   where the equation may be arithmetically true but does not belong to the displayed family.
+4. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
    answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
-4. Error patterns clustered by errorValue, answers[].operation, and problemType.
-5. A recommended next focus (2-4 families or facts), with brief reasoning.
+5. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
+6. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
 PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
@@ -1733,17 +2225,33 @@ function runSelfTests(){
   const fams = familiesInRange({ numberRange: { max: 10 } });
   ok(fams.every(f => f.a <= f.b && f.a + f.b === f.whole && f.whole <= 10 && f.a >= 1), "families valid & in range");
 
-  // problem generation invariants (200 iters across types)
+  const defaultPlan = buildSessionTypePlan(DEFAULT_CONFIG);
+  const planCounts = Object.fromEntries(PROBLEM_TYPES.map(t => [t, defaultPlan.filter(x => x === t).length]));
+  ok(defaultPlan.length === 6 && planCounts.COMPANION === 2 && planCounts.ADD_TO_SUB === 2 &&
+    planCounts.NOT_FAMILY === 1 && planCounts.WHOLE_FIRST === 1, "default session plan is 2/2/1/1 structural mix");
+
+  // problem generation invariants (200 iters across structural + arithmetic types)
   const savedCfg = state.config, savedLast = state.lastKey;
   for (let i = 0; i < 200; i++){
     const p = generateFactFamilyProblem();
-    const good = p.a <= p.b && p.a + p.b === p.whole && p.whole <= p.range &&
-      Array.isArray(p.fields) && p.fields.length > 0 &&
-      p.fields.every(f => Number.isInteger(f.expected) && f.expected >= 0 && f.expected <= p.range &&
+    const familyGood = p.a <= p.b && p.a + p.b === p.whole && p.whole <= p.range && Array.isArray(p.fields) && p.fields.length > 0;
+    let shapeGood = false;
+    if (isStructuralType(p.problemType)){
+      const structureFieldsGood = p.fields.every(f => f.operation === "structure" && f.tracksMastery === false);
+      if (p.constructRows){
+        shapeGood = p.constructRows.every(row => row.expected[0] === p.whole &&
+          [p.a, p.b].includes(row.expected[1]) && [p.a, p.b].includes(row.expected[2]) &&
+          row.expected[1] !== row.expected[2] && row.expected[1] + row.expected[2] === p.whole) && structureFieldsGood;
+      } else if (p.choiceOptions){
+        shapeGood = p.choiceOptions.filter(o => o.isCorrect).length === 1 && structureFieldsGood;
+      }
+    } else {
+      shapeGood = p.fields.every(f => Number.isInteger(f.expected) && f.expected >= 0 && f.expected <= p.range &&
         (f.fact === `${p.a}+${p.b}` || f.fact === `${p.whole}-${p.a}` || f.fact === `${p.whole}-${p.b}`));
-    if (!good){ fail++; console.error("FAIL: bad problem", p); break; }
+    }
+    ok(familyGood && shapeGood, "generated problem shape is valid");
+    if (!(familyGood && shapeGood)){ console.error("bad problem", p); break; }
   }
-  pass++;
 
   // validateConfig: example ok
   const ex = validateConfig({ numberRange:{max:10}, sessionLength:6, emphasizeFacts:["10-7"], problemTypeMix:{ADD:1,SUB1:1,SUB2:1,CONNECT:1} });
@@ -1770,6 +2278,22 @@ function runSelfTests(){
   ok(signals.includes("addToSubTransfer"), "classifies addition-to-subtraction transfer miss");
   const focus = derivePracticeFocus([transferMiss, transferMiss, transferMiss, transferMiss]);
   ok(focus.id === "addToSubTransfer" && focus.targetFamilies.includes("3+5=8"), "practice focus targets transfer gap family");
+
+  // Structural errors: true arithmetic can still be the wrong family.
+  const structuralMiss = {
+    mode:"factFamily", problemType:"COMPANION", factFamilyId:"2+7=9", correctFirstTry:false, attempts:1,
+    structuralErrorCodes:["PART_MINUS_PART"],
+  };
+  const structuralSignals = classifyDeficitSignals(structuralMiss).map(s => s.id);
+  ok(structuralSignals.includes("wholeFirst"), "part-minus-part routes to whole-first focus");
+
+  const compCfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  compCfg.problemTypeMix = { COMPANION:1, ADD_TO_SUB:0, NOT_FAMILY:0, WHOLE_FIRST:0, ADD:0, SUB1:0, SUB2:0, CONNECT:0 };
+  state.config = compCfg;
+  const compProblem = generateFactFamilyProblem();
+  ok(compProblem.problemType === "COMPANION" && compProblem.constructRows && compProblem.constructRows.length === 1,
+    "companion mode builds one matching subtraction row");
+  state.config = savedCfg;
 
   // validateConfig: junk never throws, clamps
   const junk = [null, "{", "[]", 42, {numberRange:{max:9999}}, {sessionLength:-5}, {emphasizeFacts:"nope"}, {emphasizeFamilies:["bad","2+3=5"]}, {ttsRate:99}];
