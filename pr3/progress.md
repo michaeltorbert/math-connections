@@ -20,3 +20,5 @@ Original prompt: Add picture-to-equation practice to PR 3 so it targets James's 
 - Updated `README.md`, `CONFIG_SCHEMA.md`, and `AGENTS.md` to preserve the sequenced multi-representation direction and GitHub/process guardrails.
 - Current local checks after sequenced-tutor rework: `scripts/git-safety-check.sh` passed, `npm test` passed with 247 assertions, embedded script syntax extraction passed, and `git diff --check` passed.
 - Playwright visual smoke remains blocked by local macOS/Chromium sandbox permissions: `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer... Permission denied (1100)`.
+- Claude local consult verdict after `e27f37e`: no blockers; recommended fixing picture-addition feedback and making autonomous correction attempts stage-local. Both were fixed, with regression coverage.
+- Current local checks after Claude follow-up: `scripts/git-safety-check.sh` passed, `npm test` passed with 249 assertions, embedded script syntax extraction passed, and `git diff --check` passed. Final Playwright retry remains blocked by the same Chromium Mach-port permission error.
