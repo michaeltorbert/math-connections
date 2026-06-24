@@ -927,6 +927,10 @@ function gradePictureAdditionRow(p, row, values){
   const partCountsValid = parts.includes(left) && parts.includes(right) && left + right === p.whole;
   grade.arithmeticCorrect = left + right === sum;
 
+  if (partCountsValid && sum !== p.whole){
+    grade.errorCode = "PICTURE_ADDITION_ARITHMETIC_ERROR";
+    return grade;
+  }
   if (sum !== p.whole){
     grade.errorCode = grade.arithmeticCorrect ? "TRUE_BUT_OTHER_FAMILY" : "PICTURE_WHOLE_COUNT_ERROR";
     return grade;
@@ -2824,6 +2828,13 @@ function runSelfTests(){
   ];
   applyConstructRowGrades(pictureAdditionProblem, reversedPictureAdd);
   ok(reversedPictureAdd.every(r => r.isCorrect), "PICTURE_FAMILY addition accepts either part order");
+  const wrongPictureSum = [
+    { id: "pa", submitted: 3 },
+    { id: "pb", submitted: 4 },
+    { id: "pw", submitted: 6 },
+  ];
+  ok(structuralErrorsForProblem(pictureAdditionProblem, wrongPictureSum).includes("PICTURE_ADDITION_ARITHMETIC_ERROR"),
+    "PICTURE_FAMILY classifies correct parts with wrong sum as addition arithmetic");
 
   const pictureSubProblem = Object.assign({}, pictureBase, {
     constructRows: [

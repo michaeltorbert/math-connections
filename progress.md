@@ -11,3 +11,4 @@ Original prompt: Add picture-to-equation practice to PR 3 so it targets James's 
 - Added picture row grading for unordered addition, whole-first subtraction, part-minus-part errors, arithmetic remainder errors, and picture count errors.
 - Bumped `APP_VERSION` to `1.2.0` for export and Pages-preview marker verification.
 - Current local checks after implementation: `npm test` passed with 244 assertions; embedded script syntax extraction passed.
+- Claude local consult found no blockers and one diagnostic edge case: correct picture parts with a wrong addition sum, such as `3 + 4 = 6`, should be `PICTURE_ADDITION_ARITHMETIC_ERROR`, not `PICTURE_WHOLE_COUNT_ERROR`. Fixed and added a regression assertion.
