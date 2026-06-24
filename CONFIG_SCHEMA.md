@@ -40,8 +40,8 @@ and shows a non-blocking message — it never crashes or hangs.
 ### Problem types
 
 - `ADD` — solve the addition, then write both matching subtractions.
-- `SUB1` — use a solved subtraction (`whole − a = b`) to write the matching addition.
-- `SUB2` — the mirror subtraction (`whole − b = a`) with the same matching-addition task.
+- `SUB1` — solve `whole − a = b`, then write the matching addition.
+- `SUB2` — solve the mirror subtraction `whole − b = a`, then write the matching addition.
 - `CONNECT` — use a small circle picture to write an addition and a matching subtraction.
   Use this to build add→subtract transfer without turning the task into a number-bond diagram.
 
@@ -106,12 +106,36 @@ Each **problem record**:
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
   "morphViewed": false,
+  "answers": [
+    {
+      "id": "subA",
+      "fact": "8-3",
+      "operation": "subtraction",
+      "correctAnswer": 5,
+      "childAnswer": 4,
+      "finalAnswer": 5,
+      "correctFirstTry": false
+    }
+  ],
+  "focusId": "addToSubTransfer",
+  "focusLabel": "turn addition into subtraction",
+  "focusReason": "Addition was right but matching subtraction was missed.",
+  "focusTargets": { "facts": ["8-3"], "families": ["3+5=8"] },
+  "deficitSignals": [
+    {
+      "id": "addToSubTransfer",
+      "family": "3+5=8",
+      "facts": ["8-3"],
+      "reason": "addition was right but matching subtraction was missed"
+    }
+  ],
   "timeSpentMs": 8421,
   "range": 10,
   "configId": "2026-06-24-focus-make10"
 }
 ```
 
-**To analyze transfer:** group `problems` by `factFamilyId`, then compare `correctFirstTry`
-on `operation:"addition"` vs `operation:"subtraction"` within each family. A family where
-addition is strong but subtraction is weak is a prime CONNECT or subtraction-drill candidate.
+**To analyze transfer:** group `answers` rows by `factFamilyId`, then compare first-try
+accuracy on `operation:"addition"` vs `operation:"subtraction"` within each family. A family
+where addition rows are strong but subtraction rows are weak is a prime CONNECT or
+subtraction-drill candidate.
