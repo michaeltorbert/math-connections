@@ -6,10 +6,9 @@ James, age 6). It's a kinder, more concrete take on Math Mammoth's
 practice — and it **logs every answer** so an AI (ChatGPT or Claude) can analyze how it's
 going and hand back tuning instructions the app can import.
 
-> The big idea: from `3 + 5 = 8` you also know `8 − 3 = 5` and `8 − 5 = 3`. They're one
-> **fact family**. Research shows 6-year-olds rarely "see" this on their own, so the app
-> practices the connection directly by asking for matching addition and subtraction
-> equations, sometimes from a small picture of circles.
+> The big idea: from `5 − 4 = 1`, the matching subtraction is `5 − 1 = 4`.
+> The **whole stays first** and the two parts switch places. The app practices that
+> structural move directly instead of only asking for subtraction answers.
 
 ## Run it
 
@@ -24,14 +23,15 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 
 1. Pick a level on the home screen: **Within 5**, **Within 10**, or **Within 20**.
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
-3. For each problem the child sees a prompt, sometimes a small circle picture, and one or
-   more equation blanks. They type the missing numbers and tap **✓ Check**.
-4. Four kinds of problems, all in the same family:
-   - **ADD** — solve the addition, then write the two matching subtraction equations.
-   - **SUB1 / SUB2** — solve the subtraction, then write the matching addition.
-   - **CONNECT** — use a small picture to write an addition and a matching subtraction.
-5. A quick, skippable "How did you figure it out?" tap helps record whether they *knew it*,
-   *counted*, *used adding*, or *guessed*.
+3. For each problem the child sees one fact, a small number bank, and either an empty
+   subtraction equation or a pair of equation choices.
+4. The default six-item session targets James's current misconception:
+   - **COMPANION** — given `5 − 4 = 1`, construct `5 − 1 = 4`.
+   - **ADD_TO_SUB** — given `4 + 1 = 5`, construct both matching subtractions.
+   - **NOT_FAMILY** — choose which true subtraction belongs to the displayed family.
+   - **WHOLE_FIRST** — identify which number is the whole before subtracting.
+5. The strategy question is only asked at the end of the session, so practice does not stop
+   after every item.
 
 A short, friendly voice reads each problem (toggle with **🔊 Voice** on the home screen).
 
@@ -41,6 +41,8 @@ Tap **👪 Grown-ups** (top-right) for:
 
 - **Stats** — problems, first-try %, sessions, facts mastered.
 - **Focus suggestion** — the app's own read on what to practice next.
+- **Structural error codes** — whether James kept the whole first, switched the parts, or
+  chose a true equation from the wrong family.
 - **Add ↔ Subtract transfer** — per family, addition accuracy vs subtraction accuracy
   (the clearest signal of whether the *connection* is clicking).
 - **Fact mastery** — a per-fact box from 1 (needs work) to 5 (solid).
@@ -85,6 +87,8 @@ The app now also classifies the **kind** of miss before choosing the next proble
 - addition → subtraction transfer
 - subtraction → addition transfer
 - picture → equation mapping
+- whole-first structure errors
+- true-but-wrong-family equations such as `7 − 2 = 5` for the family `2, 7, 9`
 
 Problem type and family selection are biased toward that current focus. The dashboard shows
 the focus, why it was picked, and which facts/families are being targeted.
