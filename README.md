@@ -6,9 +6,10 @@ James, age 6). It's a kinder, more concrete take on Math Mammoth's
 practice — and it **logs every answer** so an AI (ChatGPT or Claude) can analyze how it's
 going and hand back tuning instructions the app can import.
 
-> The big idea: from `5 − 4 = 1`, the matching subtraction is `5 − 1 = 4`.
-> The **whole stays first** and the two parts switch places. The app practices that
-> structural move directly instead of only asking for subtraction answers.
+> The big idea: two colored parts make one whole. The child first turns the picture into
+> quantities, then writes `part + part = whole`, then writes `whole − part = part`.
+> Symbolic fact-family work stays in the rotation, but picture → equation abstraction is
+> the default center of practice.
 
 ## Run it
 
@@ -23,13 +24,14 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 
 1. Pick a level on the home screen: **Within 5**, **Within 10**, or **Within 20**.
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
-3. For each problem the child sees one fact, a small number bank, and either an empty
-   subtraction equation or a pair of equation choices.
-4. The default six-item session targets James's current misconception:
+3. For each problem the child sees a small colored-dot picture or a short symbolic
+   reinforcement prompt.
+4. The default six-item session targets James's current picture-to-equation difficulty:
+   - **PICTURE_FAMILY** — count the colored parts and whole, write the addition, then
+     write the related subtraction. The final picture item is an independent
+     Mammoth-style transfer check with both equations blank.
    - **COMPANION** — given `5 − 4 = 1`, construct `5 − 1 = 4`.
-   - **ADD_TO_SUB** — given `4 + 1 = 5`, construct both matching subtractions.
    - **NOT_FAMILY** — choose which true subtraction belongs to the displayed family.
-   - **WHOLE_FIRST** — identify which number is the whole before subtracting.
 5. The strategy question is only asked at the end of the session, so practice does not stop
    after every item.
 
@@ -42,7 +44,8 @@ Tap **👪 Grown-ups** (top-right) for:
 - **Stats** — problems, first-try %, sessions, facts mastered.
 - **Focus suggestion** — the app's own read on what to practice next.
 - **Structural error codes** — whether James kept the whole first, switched the parts, or
-  chose a true equation from the wrong family.
+  chose a true equation from the wrong family, plus picture counting and picture-mapping
+  misses.
 - **Add ↔ Subtract transfer** — per family, addition accuracy vs subtraction accuracy
   (the clearest signal of whether the *connection* is clicking).
 - **Fact mastery** — a per-fact box from 1 (needs work) to 5 (solid).

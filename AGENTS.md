@@ -7,7 +7,9 @@ Connections.
 
 Static browser app for James's addition/subtraction fact-family practice. The
 current product target is not generic arithmetic drilling; it is helping James
-preserve the family whole when constructing companion subtraction equations.
+turn a colored part-whole picture into the related addition and subtraction
+equations. Symbolic whole-first companion-subtraction work remains secondary
+reinforcement.
 
 There is no build step and no bundler. Keep the app runnable as plain static
 files.
@@ -161,8 +163,11 @@ When refreshing a preview:
 - Keep child-facing practice untimed.
 - Keep child-facing summaries low-pressure; accuracy and error analysis belong
   in the grown-up dashboard/export.
-- For James's current need, prioritize structural evidence over raw arithmetic
-  fact accuracy:
+- For James's current need, prioritize picture-to-equation and structural
+  evidence over raw arithmetic fact accuracy:
+  - counted each colored part correctly
+  - identified the whole as all dots together
+  - wrote `part + part = whole` from the picture, accepting either part order
   - identified the whole correctly
   - placed the whole first
   - switched the two parts in a companion subtraction
