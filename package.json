@@ -1,0 +1,10 @@
+{
+  "name": "math-connections",
+  "private": true,
+  "description": "Static Math Connections practice app workflow helpers.",
+  "scripts": {
+    "serve": "node scripts/serve-root.mjs",
+    "test": "node tests/practice-core.test.js",
+    "test:logic": "node tests/practice-core.test.js"
+  }
+}
