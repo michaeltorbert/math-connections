@@ -26,12 +26,13 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
 3. For each problem the child sees a small colored-dot picture or a short symbolic
    reinforcement prompt.
-4. The default six-item session targets James's current picture-to-equation difficulty:
+4. The default six-item session follows one fact family across representations:
    - **PICTURE_FAMILY** — count the colored parts and whole, write the addition, then
-     write the related subtraction. The final picture item is an independent
-     Mammoth-style transfer check with both equations blank.
+     write the related subtraction.
+   - **ADD_TO_SUB** — given `4 + 1 = 5`, construct both matching subtractions.
    - **COMPANION** — given `5 − 4 = 1`, construct `5 − 1 = 4`.
    - **NOT_FAMILY** — choose which true subtraction belongs to the displayed family.
+   - **SPACED_REVIEW** — revisit the weakest recent skill or a recent miss.
 5. The strategy question is only asked at the end of the session, so practice does not stop
    after every item.
 
@@ -93,8 +94,18 @@ The app now also classifies the **kind** of miss before choosing the next proble
 - whole-first structure errors
 - true-but-wrong-family equations such as `7 − 2 = 5` for the family `2, 7, 9`
 
+The local scheduler works without the AI loop. By default it uses an ordered sequence:
+picture, picture, addition-to-subtraction, companion subtraction, family discrimination,
+then spaced review. The non-review items share one anchor fact family so the same structure
+moves across representations instead of appearing as unrelated drills.
+
 Problem type and family selection are biased toward that current focus. The dashboard shows
 the focus, why it was picked, and which facts/families are being targeted.
+
+The AI loop is for periodic retuning, not for choosing every next question. Each exported
+problem includes the first response, final response, scaffold level, hint sequence, modeled
+answer flag, structural code, skill, representation, and response time so ChatGPT or Claude
+can tune families/facts from evidence instead of guessing.
 
 ## Privacy
 
