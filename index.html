@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Math Connections</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="practice-panel" aria-labelledby="app-title">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Addition + Subtraction</p>
+            <h1 id="app-title">Math Connections</h1>
+          </div>
+          <button class="tool-button" id="parent-toggle" type="button" aria-expanded="false" aria-controls="parent-panel">
+            Parent tools
+          </button>
+        </header>
+
+        <section class="progress-strip" aria-label="Session progress">
+          <div>
+            <span class="metric-label">First try</span>
+            <strong id="first-try-score">0/0</strong>
+          </div>
+          <div>
+            <span class="metric-label">Practice</span>
+            <strong id="needs-practice-score">0</strong>
+          </div>
+          <div>
+            <span class="metric-label">Question</span>
+            <strong id="question-count">1/12</strong>
+          </div>
+        </section>
+
+        <section class="workspace" aria-live="polite">
+          <div class="number-model" id="number-model" aria-label="Part part whole model"></div>
+          <div class="problem-area">
+            <p class="problem-kicker" id="problem-kicker">Fact family</p>
+            <h2 id="problem-title">Loading...</h2>
+            <div class="given-equation" id="given-equation" aria-label="Given equation"></div>
+            <form id="answer-form" class="answer-form" autocomplete="off"></form>
+            <p class="feedback" id="feedback" role="status"></p>
+          </div>
+        </section>
+
+        <footer class="action-row">
+          <button class="secondary-button" id="hint-button" type="button">Hint</button>
+          <button class="secondary-button" id="skip-button" type="button">Skip</button>
+          <button class="primary-button" id="check-button" type="submit" form="answer-form">Check</button>
+          <button class="primary-button hidden" id="next-button" type="button">Next</button>
+        </footer>
+      </section>
+
+      <aside class="parent-panel" id="parent-panel" aria-label="Parent tools" hidden>
+        <div class="panel-section">
+          <h2>Settings</h2>
+          <div class="settings-grid">
+            <label>
+              Learner
+              <input id="learner-name" type="text" value="James">
+            </label>
+            <label>
+              Range
+              <select id="range-max">
+                <option value="10">Within 10</option>
+                <option value="20">Within 20</option>
+              </select>
+            </label>
+            <label>
+              Questions
+              <select id="target-questions">
+                <option value="8">8</option>
+                <option value="12" selected>12</option>
+                <option value="16">16</option>
+                <option value="20">20</option>
+              </select>
+            </label>
+            <label class="checkbox-label">
+              <input id="adaptive-toggle" type="checkbox" checked>
+              Adapt from recent work
+            </label>
+          </div>
+          <button class="tool-button full-width" id="new-session-button" type="button">Start new session</button>
+        </div>
+
+        <div class="panel-section">
+          <h2>Results</h2>
+          <p class="panel-note">Stored on this browser. Export before clearing browser data.</p>
+          <div class="summary-list" id="summary-list"></div>
+          <div class="button-grid">
+            <button class="tool-button" id="download-json" type="button">JSON</button>
+            <button class="tool-button" id="download-csv" type="button">CSV</button>
+            <button class="tool-button" id="copy-ai-prompt" type="button">AI prompt</button>
+            <button class="danger-button" id="clear-data" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h2>Coach plan</h2>
+          <textarea id="coach-plan-input" spellcheck="false" placeholder='{"rangeMax":10,"focusFacts":[{"whole":9,"parts":[4,5],"weight":4}]}'></textarea>
+          <div class="button-grid">
+            <button class="tool-button" id="apply-plan" type="button">Apply plan</button>
+            <button class="tool-button" id="clear-plan" type="button">Clear plan</button>
+          </div>
+          <p class="panel-note" id="plan-status">No imported plan.</p>
+        </div>
+      </aside>
+    </main>
+
+    <script src="src/practice-core.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>
