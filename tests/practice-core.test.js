@@ -8,6 +8,7 @@ const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/);
 assert(script, "index.html script block not found");
 
 function makeEl(tag = "div") {
+  const classes = new Set();
   return {
     tagName: tag.toUpperCase(),
     children: [],
@@ -20,10 +21,16 @@ function makeEl(tag = "div") {
     checked: false,
     disabled: false,
     classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
+      add(...names) { names.forEach(name => classes.add(name)); },
+      remove(...names) { names.forEach(name => classes.delete(name)); },
+      toggle(name, force) {
+        if (force === true) { classes.add(name); return true; }
+        if (force === false) { classes.delete(name); return false; }
+        if (classes.has(name)) { classes.delete(name); return false; }
+        classes.add(name);
+        return true;
+      },
+      contains(name) { return classes.has(name); },
     },
     append(...kids) { this.children.push(...kids); },
     appendChild(kid) { this.children.push(kid); return kid; },
