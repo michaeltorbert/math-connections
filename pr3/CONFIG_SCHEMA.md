@@ -39,11 +39,11 @@ and shows a non-blocking message — it never crashes or hangs.
 
 ### Problem types
 
-- `ADD` — find the whole (`a + b = ?`).
-- `SUB1` — find a part, take-away framing (`whole − a = ?`).
-- `SUB2` — the mirror part (`whole − b = ?`).
-- `CONNECT` — a subtraction with the matching addition shown as a scaffold
-  (`You know a + b = whole. So whole − a = ?`). Use this to build add→subtract transfer.
+- `ADD` — solve the addition, then write both matching subtractions.
+- `SUB1` — use a solved subtraction (`whole − a = b`) to write the matching addition.
+- `SUB2` — the mirror subtraction (`whole − b = a`) with the same matching-addition task.
+- `CONNECT` — use a small circle picture to write an addition and a matching subtraction.
+  Use this to build add→subtract transfer without turning the task into a number-bond diagram.
 
 ## Examples
 
@@ -114,4 +114,4 @@ Each **problem record**:
 
 **To analyze transfer:** group `problems` by `factFamilyId`, then compare `correctFirstTry`
 on `operation:"addition"` vs `operation:"subtraction"` within each family. A family where
-addition is strong but subtraction is weak is a prime CONNECT-drill candidate.
+addition is strong but subtraction is weak is a prime CONNECT or subtraction-drill candidate.

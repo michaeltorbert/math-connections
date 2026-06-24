@@ -8,8 +8,8 @@ going and hand back tuning instructions the app can import.
 
 > The big idea: from `3 + 5 = 8` you also know `8 − 3 = 5` and `8 − 5 = 3`. They're one
 > **fact family**. Research shows 6-year-olds rarely "see" this on their own, so the app
-> makes the connection **visible** with a fact-family triangle, countable blocks, and a
-> "Show the connection" animation.
+> practices the connection directly by asking for matching addition and subtraction
+> equations, sometimes from a small picture of circles.
 
 ## Run it
 
@@ -24,14 +24,12 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 
 1. Pick a level on the home screen: **Within 5**, **Within 10**, or **Within 20**.
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
-3. For each problem the child sees a short story, a **fact-family triangle**, and
-   **counters** (blocks). They set their answer with the big **−／＋** buttons and tap **✓ Check**.
+3. For each problem the child sees a prompt, sometimes a small circle picture, and one or
+   more equation blanks. They type the missing numbers and tap **✓ Check**.
 4. Four kinds of problems, all in the same family:
-   - **ADD** — find the whole (`3 + 5 = ?`). After a correct add, a **✨ Show the connection**
-     button reveals the two matching subtractions.
-   - **SUB1 / SUB2** — find a missing part (`8 − 3 = ?`), shown as a "take-away" with crossed-out blocks.
-   - **CONNECT** — the addition is shown as a hint (`You know 3 + 5 = 8. So 8 − 3 = ?`) to
-     teach the child to *use* adding to do subtracting.
+   - **ADD** — solve the addition, then write the two matching subtraction equations.
+   - **SUB1 / SUB2** — use a solved subtraction to write the matching addition.
+   - **CONNECT** — use a small picture to write an addition and a matching subtraction.
 5. A quick, skippable "How did you figure it out?" tap helps record whether they *knew it*,
    *counted*, *used adding*, or *guessed*.
 
@@ -102,9 +100,10 @@ After pushing an update, a hard-refresh (or append `?v=2`) avoids the Pages CDN 
 - **Self-tests:** open the dev console and run `runSelfTests()` (or load with `#test` in the
   URL). They check problem-generation invariants, config validation/clamping (fuzzed with
   junk), mastery promote/demote bounds, and weighted selection. Expect `0 failed`.
+- **Node smoke test:** run `node tests/practice-core.test.js`.
 - Key areas in `index.html`: fact-family math (§4), mastery + selection (§5), config
-  validation (§6), problem generation (§8), session flow (§9), rendering incl. the triangle
-  and morph (§10), the results dump + analysis prompt (§12), self-tests (§14).
+  validation (§6), problem generation (§8), session flow (§9), equation rendering (§10),
+  the results dump + analysis prompt (§12), self-tests (§14).
 - Data schema: each logged problem and the exported dump carry `schemaVersion`.
 
 ## License
