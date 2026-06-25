@@ -30,7 +30,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFamilies` | string[] | family strings | `[]` | Families to show **more** often (weight ×3). Bad entries dropped. |
 | `avoidFamilies` | string[] | family strings | `[]` | Families to **exclude**. If this empties the pool, the app falls back to the full in-range set and warns. |
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
-| `problemTypeMix` | object | weights ≥ 0 | `{COMPARE_COMPANION:.5, COMPARE_ADD:.17, COMPANION:.17, PICTURE_FAMILY:.1, NOT_FAMILY:.06}` | Relative likelihood of concrete problem types. The default scheduler also adds a sixth review slot. **Auto-normalized** to sum 1, so you may pass plain weights like `{COMPARE_COMPANION:3, COMPARE_ADD:1, COMPANION:1, PICTURE_FAMILY:1}`. |
+| `problemTypeMix` | object | weights ≥ 0 | six diagnostic types plus light transfer review | Relative weight for adaptive extra slots after calibration. Every adaptive cycle still guarantees one probe from each diagnostic type. **Auto-normalized** to sum 1, so you may pass plain weights like `{SUB_MISSING_WHOLE:3, COMPANION:2, COMPARE_COMPANION:2}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
 | `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Legacy compatibility flag. The app now always shows a required connection step after each solved problem. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
@@ -39,6 +39,10 @@ and shows a non-blocking message — it never crashes or hangs.
 
 ### Problem types
 
+- `SUB_RESULT` — solve the result blank in a subtraction, e.g. `7 − 4 = □`.
+- `SUB_MISSING_PART` — solve the taken-away blank, e.g. `7 − □ = 3`.
+- `SUB_MISSING_WHOLE` — solve the first-number blank, e.g. `□ − 4 = 3`.
+- `ADD_MISSING_PART` — solve the missing-addend blank, e.g. `□ + 4 = 7`.
 - `COMPARE_COMPANION` — show a comparison-dot picture plus a given subtraction, then ask for
   the companion subtraction, e.g. `5 − 4 = 1` → `5 − 1 = 4`.
 - `COMPARE_ADD` — show the same comparison situation plus a given subtraction, then ask for a
@@ -57,17 +61,18 @@ and shows a non-blocking message — it never crashes or hangs.
 - `CONNECT` — use a small circle picture to write an addition and a matching subtraction.
   Use this to build add→subtract transfer without turning the task into a number-bond diagram.
 
-The local default six-screen scheduler is ordered, not random:
+The local default scheduler is ordered, not random. First it runs a quiet calibration phase:
 
-1. `COMPARE_COMPANION`
-2. `COMPARE_COMPANION`
-3. `COMPARE_COMPANION`
-4. `COMPARE_ADD`
-5. `COMPANION`
-6. `SPACED_REVIEW` (internal slot that resolves to the weakest recent skill or miss)
+1. Six sessions of six questions.
+2. Each calibration session includes one each of `SUB_RESULT`, `SUB_MISSING_PART`,
+   `SUB_MISSING_WHOLE`, `ADD_MISSING_PART`, `COMPANION`, and `COMPARE_COMPANION`.
+3. Six fact families are rotated across the six types over the six sessions.
+4. The same family is not intentionally reused twice inside one calibration session.
 
-When an imported `problemTypeMix` uses the default ratios, the app keeps this conceptual
-sequence. Custom mixes are still arranged in a stable instructional order rather than shuffled.
+After calibration, the app uses repeating 12-question cycles: six guaranteed probes, three
+extra questions from the weakest type, two from the second-weakest type or prerequisite, and
+one `SPACED_REVIEW` slot that resolves to a recent weak skill. Imported `problemTypeMix`
+weights can nudge the extra slots, but they do not remove the guaranteed probes.
 
 ## Examples
 
@@ -88,7 +93,7 @@ sequence. Custom mixes are still arranged in a stable instructional order rather
   "emphasizeFamilies": ["6+4=10", "7+3=10", "8+2=10"],
   "emphasizeFacts": ["10-6", "10-7", "10-8"],
   "avoidFamilies": [],
-  "problemTypeMix": { "COMPARE_COMPANION": 3, "COMPARE_ADD": 1, "COMPANION": 1, "PICTURE_FAMILY": 1 },
+  "problemTypeMix": { "SUB_MISSING_WHOLE": 3, "COMPANION": 2, "COMPARE_COMPANION": 2, "ADD_MISSING_PART": 1 },
   "hintBehavior": { "autoHintAfterWrong": 1, "alwaysOfferMorph": true },
   "mastery": { "streakToMaster": 3, "demoteOnMiss": true },
   "ttsRate": 0.92
@@ -111,6 +116,12 @@ sequence. Custom mixes are still arranged in a stable instructional order rather
     "skillStats": { /* per-skill first-try ratios */ },
     "representationStats": { /* comparison dots vs put-together dots vs equation ratios */ }
   },
+  "diagnosticProfile": {
+    "calibration": { "targetProblems": 36, "completedProblems": 18, "complete": false },
+    "lifetimeProblemTypes": { "SUB_RESULT": { "seen": 3, "correct": 2, "score": 0.33 }, "...": "..." },
+    "recentProblemTypes": { "SUB_RESULT": { "seen": 3, "correct": 2, "score": 0.33 }, "...": "..." }
+  },
+  "recentProblems": [ /* last 50 problem records for improvement-window analysis */ ],
   "sessions": [ { "id", "startedAt", "endedAt", "length", "summary": { "total", "firstTry" } }, ... ],
   "problems": [ /* one record per problem, schema below */ ]
 }
@@ -122,13 +133,20 @@ Each **problem record**:
 {
   "id", "timestamp", "sessionId", "schemaVersion",
   "mode": "factFamily",
-  "problemType": "COMPARE_COMPANION", // COMPARE_COMPANION | COMPARE_ADD | PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT
+  "problemType": "COMPARE_COMPANION", // includes SUB_RESULT | SUB_MISSING_PART | SUB_MISSING_WHOLE | ADD_MISSING_PART | COMPANION | COMPARE_COMPANION plus transfer/review types
   "plannedType": "SPACED_REVIEW",   // original session slot before review/focus resolution; often same as problemType
+  "schedulerPhase": "adaptive",     // calibration | adaptive | null
+  "schedulerRole": "weakestExtra",  // calibrationProbe | guaranteedProbe | weakestExtra | secondWeakestExtra | secondWeakestPrerequisite | spacedReview
+  "schedulerCycleIndex": 2,
+  "schedulerCyclePosition": 7,
+  "calibrationSessionIndex": null,
+  "calibrationTypeIndex": null,
   "factFamilyId": "1+4=5",
   "operands": { "a": 1, "b": 4, "whole": 5 },
   "fact": "5-1",
   "factCanonical": "5-1=4",
   "operation": "structure",         // structure | count | addition | subtraction
+  "blankPosition": "subtrahend",
   "skill": "companionSubtraction",
   "representation": "comparisonDots",
   "problemText": "Write the other subtraction. Keep the first number. Switch the other two numbers.",
@@ -137,6 +155,9 @@ Each **problem record**:
   "errorValue": null,
   "attempts": 2,
   "correctFirstTry": false,
+  "finalCorrect": true,
+  "successAfterHint": true,
+  "supportOutcome": "verbalHint",   // independent | verbalHint | relatedAdditionHint | visualModel | afterRetry | notCorrect
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
   "hintSequence": ["firstNumberStays", "switchOtherNumbers"],
@@ -149,6 +170,7 @@ Each **problem record**:
       "fact": "5-1",
       "operation": "subtraction",
       "role": "whole",
+      "blankPosition": "whole",
       "skill": "wholeFirst",
       "representation": "comparisonDots",
       "correctAnswer": 5,
