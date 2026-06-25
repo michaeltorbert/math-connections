@@ -4071,6 +4071,66 @@ function runSelfTests(){
     adaptiveCycle.filter(slot => slot.schedulerRole === "secondWeakestExtra" || slot.schedulerRole === "secondWeakestPrerequisite").length === 2 &&
     adaptiveCycle.filter(slot => slot.schedulerRole === "spacedReview").length === 1,
     "adaptive cycle has six probes, three weakest extras, two second/prerequisite extras, and one review");
+  const savedSchedulerState = {
+    problemLog: state.problemLog,
+    sessionLog: state.sessionLog,
+    session: state.session,
+    problem: state.problem,
+    view: state.view,
+    screen: state.screen,
+    config: state.config,
+    mastery: state.mastery,
+    recentMisses: state.recentMisses,
+    lastKey: state.lastKey,
+  };
+  state.config = DEFAULT_CONFIG;
+  state.problemLog = [];
+  state.sessionLog = [];
+  state.mastery = {};
+  state.recentMisses = [];
+  for (let i = 0; i < CALIBRATION_QUESTION_TARGET; i++){
+    state.problemLog.push({
+      id: `cal-record-${i}`,
+      mode: "factFamily",
+      problemType: DIAGNOSTIC_TYPES[i % DIAGNOSTIC_TYPES.length],
+      schedulerPhase: "calibration",
+      correctFirstTry: true,
+      hintUsed: false,
+      modeledAnswer: false,
+      answers: [],
+    });
+  }
+  startSession();
+  const adaptiveProblem = state.problem;
+  const solvedAdaptiveResults = adaptiveProblem.fields.map(field => resultForField(field, String(field.expected)));
+  applyConstructRowGrades(adaptiveProblem, solvedAdaptiveResults);
+  const primarySolvedAdaptiveResult = solvedAdaptiveResults.find(result => !result.locked) || solvedAdaptiveResults[0] || null;
+  state.view.firstAnswers = Object.fromEntries(adaptiveProblem.fields.map(field => [field.id, String(field.expected)]));
+  state.view.firstAnswer = primarySolvedAdaptiveResult ? primarySolvedAdaptiveResult.submitted : null;
+  state.view.firstFieldResults = solvedAdaptiveResults.map(result => Object.assign({}, result));
+  state.view.fieldResults = Object.fromEntries(solvedAdaptiveResults.map(result => [result.id, result]));
+  state.view.solved = true;
+  state.view.connectionViewed = true;
+  state.view.morphViewed = true;
+  state.view.attempts = 1;
+  recordProblemAndAdvance();
+  const adaptiveRecord = state.problemLog[state.problemLog.length - 1];
+  ok(adaptiveRecord.schedulerPhase === "adaptive" &&
+    adaptiveRecord.schedulerRole === "guaranteedProbe" &&
+    adaptiveRecord.schedulerCycleIndex === 0 &&
+    adaptiveRecord.schedulerCyclePosition === 0 &&
+    answeredAdaptiveCount(state.problemLog) === 1,
+    "logged adaptive records preserve scheduler phase, role, and cycle position");
+  state.problemLog = savedSchedulerState.problemLog;
+  state.sessionLog = savedSchedulerState.sessionLog;
+  state.session = savedSchedulerState.session;
+  state.problem = savedSchedulerState.problem;
+  state.view = savedSchedulerState.view;
+  state.screen = savedSchedulerState.screen;
+  state.config = savedSchedulerState.config;
+  state.mastery = savedSchedulerState.mastery;
+  state.recentMisses = savedSchedulerState.recentMisses;
+  state.lastKey = savedSchedulerState.lastKey;
   state.problemLog = savedProblemLogForPlan;
 
   // problem generation invariants (200 iters across structural + arithmetic types)
