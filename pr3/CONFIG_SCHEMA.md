@@ -30,7 +30,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFamilies` | string[] | family strings | `[]` | Families to show **more** often (weight ×3). Bad entries dropped. |
 | `avoidFamilies` | string[] | family strings | `[]` | Families to **exclude**. If this empties the pool, the app falls back to the full in-range set and warns. |
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
-| `problemTypeMix` | object | weights ≥ 0 | six diagnostic types plus light transfer review | Relative weight for adaptive extra slots after calibration. Every adaptive cycle still guarantees one probe from each diagnostic type. **Auto-normalized** to sum 1, so you may pass plain weights like `{SUB_MISSING_WHOLE:3, COMPANION:2, COMPARE_COMPANION:2}`. |
+| `problemTypeMix` | object | weights ≥ 0 | six diagnostic types plus light transfer review | Relative weight used when ranking weak types after calibration. The app still applies its 50/20/20/10 adaptive split. **Auto-normalized** to sum 1, so you may pass plain weights like `{SUB_MISSING_WHOLE:3, COMPANION:2, COMPARE_COMPANION:2}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
 | `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Legacy compatibility flag. The app now always shows a required connection step after each solved problem. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
@@ -63,16 +63,16 @@ and shows a non-blocking message — it never crashes or hangs.
 
 The local default scheduler is ordered, not random. First it runs a quiet calibration phase:
 
-1. Six sessions of six questions.
+1. Three sessions of six questions.
 2. Each calibration session includes one each of `SUB_RESULT`, `SUB_MISSING_PART`,
    `SUB_MISSING_WHOLE`, `ADD_MISSING_PART`, `COMPANION`, and `COMPARE_COMPANION`.
-3. Six fact families are rotated across the six types over the six sessions.
+3. Six fact families are rotated across the six types over the three sessions.
 4. The same family is not intentionally reused twice inside one calibration session.
 
-After calibration, the app uses repeating 12-question cycles: six guaranteed probes, three
-extra questions from the weakest type, two from the second-weakest type or prerequisite, and
-one `SPACED_REVIEW` slot that resolves to a recent weak skill. Imported `problemTypeMix`
-weights can nudge the extra slots, but they do not remove the guaranteed probes.
+After calibration, each session uses the adaptive split from the diagnostic data: 50% weakest
+problem type, 20% prerequisite, 20% transfer to another representation, and 10% previously
+mastered review. Imported `problemTypeMix` weights can nudge weak-type ranking, but they do
+not create a manual child-facing mode.
 
 ## Examples
 
@@ -117,7 +117,7 @@ weights can nudge the extra slots, but they do not remove the guaranteed probes.
     "representationStats": { /* comparison dots vs put-together dots vs equation ratios */ }
   },
   "diagnosticProfile": {
-    "calibration": { "targetProblems": 36, "completedProblems": 18, "complete": false },
+    "calibration": { "targetProblems": 18, "completedProblems": 12, "complete": false },
     "lifetimeProblemTypes": { "SUB_RESULT": { "seen": 3, "correct": 2, "score": 0.33 }, "...": "..." },
     "recentProblemTypes": { "SUB_RESULT": { "seen": 3, "correct": 2, "score": 0.33 }, "...": "..." }
   },
@@ -136,8 +136,8 @@ Each **problem record**:
   "problemType": "COMPARE_COMPANION", // includes SUB_RESULT | SUB_MISSING_PART | SUB_MISSING_WHOLE | ADD_MISSING_PART | COMPANION | COMPARE_COMPANION plus transfer/review types
   "plannedType": "SPACED_REVIEW",   // original session slot before review/focus resolution; often same as problemType
   "schedulerPhase": "adaptive",     // calibration | adaptive | null
-  "schedulerRole": "weakestExtra",  // calibrationProbe | guaranteedProbe | weakestExtra | secondWeakestExtra | secondWeakestPrerequisite | spacedReview
-  "schedulerCycleIndex": 2,
+  "schedulerRole": "weakestType50",  // calibrationProbe | weakestType50 | prerequisite20 | transfer20 | masteredReview10
+  "schedulerCycleIndex": null,
   "schedulerCyclePosition": 7,
   "calibrationSessionIndex": null,
   "calibrationTypeIndex": null,
@@ -152,12 +152,17 @@ Each **problem record**:
   "problemText": "Write the other subtraction. Keep the first number. Switch the other two numbers.",
   "correctAnswer": 1,
   "childAnswer": 4,
+  "firstAnswer": 4,
+  "finalAnswer": 1,
+  "firstTryCorrect": false,
   "errorValue": null,
   "attempts": 2,
   "correctFirstTry": false,
   "finalCorrect": true,
   "successAfterHint": true,
   "supportOutcome": "verbalHint",   // independent | verbalHint | relatedAdditionHint | visualModel | afterRetry | notCorrect
+  "outcomeCode": "CORRECT_AFTER_HINT",
+  "hintLevel": 1,
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
   "hintSequence": ["firstNumberStays", "switchOtherNumbers"],

@@ -190,16 +190,16 @@ When refreshing a preview:
   - logged `PART_MINUS_PART` separately from ordinary arithmetic mistakes
 - Keep the default local scheduler automatic and representationally coherent.
   The child should not see or choose a separate test mode. Preserve the quiet
-  36-question calibration phase: six sessions of six questions, one each of
+  18-question calibration phase: three sessions of six questions, one each of
   `SUB_RESULT`, `SUB_MISSING_PART`, `SUB_MISSING_WHOLE`,
   `ADD_MISSING_PART`, `COMPANION`, and `COMPARE_COMPANION`, with six
   fact families rotated across types and no intentional duplicate family in a
   calibration session.
-- After calibration, preserve adaptive 12-question cycles: six guaranteed
-  probes, three extra questions from the weakest type, two from the
-  second-weakest type or prerequisite, and one spaced-review item. Imported
-  `problemTypeMix` may nudge extra slots, but must not remove the guaranteed
-  probes.
+- After calibration, preserve the adaptive 50/20/20/10 split: 50% weakest
+  problem type, 20% that type's prerequisite, 20% transfer to another
+  representation, and 10% previously mastered review. Imported
+  `problemTypeMix` may nudge weak-type ranking, but must not expose manual
+  child-facing modes.
 - Log skill and representation metadata at answer-row level. Current skill
   buckets include counting each group, identifying the whole,
   picture-to-addition, picture-to-subtraction, whole-first structure,
@@ -211,6 +211,10 @@ When refreshing a preview:
   related-addition hint, or visual model should be logged separately through
   `successAfterHint`, `supportOutcome`, `hintSequence`, and final answer fields,
   not by replacing the first answer.
+- For `SUB_MISSING_WHOLE`, preserve missing-minuend-specific first-answer
+  codes: `SUBTRACTED_KNOWN_NUMBERS`, `COPIED_SUBTRAHEND`,
+  `COPIED_DIFFERENCE`, and `MISSING_MINUEND_ERROR`, plus outcome codes such as
+  `CORRECT_INDEPENDENTLY` and `CORRECT_AFTER_ADDITION_HINT`.
 - Keep representations distinct: `comparisonDots` for compare/how-many-more
   pictures, `putTogetherDots` for how-many-in-all pictures, and `equation` for
   symbolic transfer.
