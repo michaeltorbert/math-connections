@@ -27,7 +27,7 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
    There is no separate test mode; calibration and practice happen quietly inside normal play.
 3. For each problem the child sees either a comparison-dot picture or a short symbolic
    reinforcement prompt.
-4. The first 18 questions are an automatic calibration: three sessions of six questions. Each
+4. The first 36 questions are an automatic calibration: six sessions of six questions. Each
    calibration session includes one of each:
    - `7 − 4 = □`
    - `7 − □ = 3`
@@ -35,11 +35,12 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
    - `□ + 4 = 7`
    - given `7 − 4 = 3`, write the companion subtraction
    - interpret a picture-based connection
-5. After calibration, ordinary sessions adapt automatically:
-   - 50% from the weakest problem type
-   - 20% from that type's prerequisite
-   - 20% transfer to another representation
-   - 10% previously mastered review
+5. After calibration, practice uses repeating 12-question cycles spread across two ordinary
+   six-question sessions:
+   - six guaranteed probes, one from each calibrated type
+   - three extra questions from the weakest type
+   - two from the second-weakest type or its prerequisite
+   - one spaced-review question
 6. The connection-focused items include:
    - **COMPARE_COMPANION** — see comparison dots and `5 − 4 = 1`, then write `5 − 1 = 4`.
    - **COMPARE_ADD** — see comparison dots and `5 − 4 = 1`, then write `4 + 1 = 5`
@@ -114,10 +115,10 @@ The app now also classifies the **kind** of miss before choosing the next proble
 - whole-first structure errors
 - true-but-wrong-family equations such as `7 − 2 = 5` for the family `2, 7, 9`
 
-The local scheduler works without the AI loop. It starts with a controlled 18-question
-calibration across six diagnostic types and rotated fact families. After that, each session
-uses the 50/20/20/10 adaptive split: weakest type, prerequisite, transfer representation,
-and mastered review.
+The local scheduler works without the AI loop. It starts with a controlled 36-question
+calibration across six diagnostic types and six rotated fact families. After that, every
+12-question cycle keeps all six types monitored while adding extra work for the weakest type,
+the second-weakest type or prerequisite, and spaced review.
 
 The app keeps **COMPARE** and **PUT TOGETHER** pictures separate. In compare problems, visible
 dots show "how many more?" and the first subtraction number stays fixed. In put-together
