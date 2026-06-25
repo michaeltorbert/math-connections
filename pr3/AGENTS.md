@@ -216,6 +216,9 @@ When refreshing a preview:
 - Treat the connection reveal as required teaching, not optional enrichment.
   After a solved problem, show the connection automatically and require a
   simple acknowledgment before the Next/Finish control appears.
+- Keep numeric answer entry tablet-friendly. Do not rely on iPad users opening
+  the native keyboard and switching to number mode; preserve the in-app keypad
+  for child-facing blanks.
 - Render imported config errors and user-controlled text with `textContent` or
   DOM text nodes, not `innerHTML`.
 - Validate adaptive configs defensively: parse facts/families, confirm
