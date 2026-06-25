@@ -30,7 +30,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFamilies` | string[] | family strings | `[]` | Families to show **more** often (weight ×3). Bad entries dropped. |
 | `avoidFamilies` | string[] | family strings | `[]` | Families to **exclude**. If this empties the pool, the app falls back to the full in-range set and warns. |
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
-| `problemTypeMix` | object | weights ≥ 0 | `{PICTURE_FAMILY:.4, ADD_TO_SUB:.2, COMPANION:.2, NOT_FAMILY:.2}` | Relative likelihood of concrete problem types. The default scheduler also adds a sixth spaced-review slot. **Auto-normalized** to sum 1, so you may pass plain weights like `{PICTURE_FAMILY:2, ADD_TO_SUB:1, COMPANION:1, NOT_FAMILY:1}`. |
+| `problemTypeMix` | object | weights ≥ 0 | `{COMPARE_COMPANION:.5, COMPARE_ADD:.17, COMPANION:.17, PICTURE_FAMILY:.1, NOT_FAMILY:.06}` | Relative likelihood of concrete problem types. The default scheduler also adds a sixth review slot. **Auto-normalized** to sum 1, so you may pass plain weights like `{COMPARE_COMPANION:3, COMPARE_ADD:1, COMPANION:1, PICTURE_FAMILY:1}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
 | `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Offer the "Show the connection" animation after a correct ADD. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
@@ -39,10 +39,13 @@ and shows a non-blocking message — it never crashes or hangs.
 
 ### Problem types
 
+- `COMPARE_COMPANION` — show a comparison-dot picture plus a given subtraction, then ask for
+  the companion subtraction, e.g. `5 − 4 = 1` → `5 − 1 = 4`.
+- `COMPARE_ADD` — show the same comparison situation plus a given subtraction, then ask for a
+  matching addition, accepting either addend order, e.g. `4 + 1 = 5` or `1 + 4 = 5`.
 - `PICTURE_FAMILY` — use a colored-dot picture to count both parts and the whole, then
   construct `part + part = whole` and `whole − part = part`. Earlier items are staged
-  and guided; the final picture item in a normal session is an independent Mammoth-style
-  transfer check with both equations blank.
+  and guided. This is the **PUT TOGETHER** representation, not the main comparison task.
 - `COMPANION` — given one subtraction, construct the matching subtraction while keeping
   the whole first, e.g. `5 − 4 = 1` → `5 − 1 = 4`.
 - `ADD_TO_SUB` — given an addition, construct both matching subtractions.
@@ -56,11 +59,11 @@ and shows a non-blocking message — it never crashes or hangs.
 
 The local default six-screen scheduler is ordered, not random:
 
-1. `PICTURE_FAMILY`
-2. `PICTURE_FAMILY`
-3. `ADD_TO_SUB`
-4. `COMPANION`
-5. `NOT_FAMILY`
+1. `COMPARE_COMPANION`
+2. `COMPARE_COMPANION`
+3. `COMPARE_COMPANION`
+4. `COMPARE_ADD`
+5. `COMPANION`
 6. `SPACED_REVIEW` (internal slot that resolves to the weakest recent skill or miss)
 
 When an imported `problemTypeMix` uses the default ratios, the app keeps this conceptual
@@ -85,7 +88,7 @@ sequence. Custom mixes are still arranged in a stable instructional order rather
   "emphasizeFamilies": ["6+4=10", "7+3=10", "8+2=10"],
   "emphasizeFacts": ["10-6", "10-7", "10-8"],
   "avoidFamilies": [],
-  "problemTypeMix": { "PICTURE_FAMILY": 2, "ADD_TO_SUB": 1, "COMPANION": 1, "NOT_FAMILY": 1 },
+  "problemTypeMix": { "COMPARE_COMPANION": 3, "COMPARE_ADD": 1, "COMPANION": 1, "PICTURE_FAMILY": 1 },
   "hintBehavior": { "autoHintAfterWrong": 1, "alwaysOfferMorph": true },
   "mastery": { "streakToMaster": 3, "demoteOnMiss": true },
   "ttsRate": 0.92
@@ -106,7 +109,7 @@ sequence. Custom mixes are still arranged in a stable instructional order rather
     "factStats": { /* per-fact first-try ratios */ },
     "familyStats": { /* addition vs subtraction transfer ratios by family */ },
     "skillStats": { /* per-skill first-try ratios */ },
-    "representationStats": { /* picture vs equation first-try ratios */ }
+    "representationStats": { /* comparison dots vs put-together dots vs equation ratios */ }
   },
   "sessions": [ { "id", "startedAt", "endedAt", "length", "summary": { "total", "firstTry" } }, ... ],
   "problems": [ /* one record per problem, schema below */ ]
@@ -119,70 +122,72 @@ Each **problem record**:
 {
   "id", "timestamp", "sessionId", "schemaVersion",
   "mode": "factFamily",
-  "problemType": "COMPANION",       // PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT
+  "problemType": "COMPARE_COMPANION", // COMPARE_COMPANION | COMPARE_ADD | PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT
   "plannedType": "SPACED_REVIEW",   // original session slot before review/focus resolution; often same as problemType
-  "factFamilyId": "3+5=8",
-  "operands": { "a": 3, "b": 5, "whole": 8 },
-  "fact": "8-3",
-  "factCanonical": "8-3=5",
+  "factFamilyId": "1+4=5",
+  "operands": { "a": 1, "b": 4, "whole": 5 },
+  "fact": "5-1",
+  "factCanonical": "5-1=4",
   "operation": "structure",         // structure | count | addition | subtraction
-  "skill": "wholeFirst",
-  "representation": "equation",
-  "problemText": "Make the matching subtraction. The whole stays first. The parts switch places.",
-  "correctAnswer": 5,
-  "childAnswer": 1,
+  "skill": "companionSubtraction",
+  "representation": "comparisonDots",
+  "problemText": "Write the other subtraction. Keep the first number. Switch the other two numbers.",
+  "correctAnswer": 1,
+  "childAnswer": 4,
   "errorValue": null,
   "attempts": 2,
   "correctFirstTry": false,
   "strategyTag": "countback",       // memory | counton | countback | usedadd | fingers | guessed | null
   "hintUsed": true,
-  "hintSequence": ["addition:conceptualFeedback", "addition:addedScaffold"],
+  "hintSequence": ["firstNumberStays", "switchOtherNumbers"],
   "modeledAnswer": false,
   "morphViewed": false,
   "answers": [
     {
-      "id": "compWhole",
-      "fact": "8-3",
-      "operation": "structure",
+      "id": "cmpWhole",
+      "fact": "5-1",
+      "operation": "subtraction",
       "role": "whole",
       "skill": "wholeFirst",
-      "representation": "equation",
-      "correctAnswer": 8,
+      "representation": "comparisonDots",
+      "correctAnswer": 5,
       "childAnswer": 5,
-      "finalAnswer": 8,
-      "correctFirstTry": false,
+      "finalAnswer": 5,
+      "correctFirstTry": true,
       "errorCode": null,
       "arithmeticCorrect": null,
       "familyCorrect": null
     },
     {
-      "id": "compSub",
-      "fact": "8-3",
-      "operation": "structure",
+      "id": "cmpSub",
+      "fact": "5-1",
+      "operation": "subtraction",
       "role": "subtrahend",
-      "correctAnswer": 5,
+      "skill": "companionSubtraction",
+      "representation": "comparisonDots",
+      "correctAnswer": 1,
       "childAnswer": 4,
-      "finalAnswer": 5,
+      "finalAnswer": 1,
       "correctFirstTry": false,
-      "errorCode": null,
+      "errorCode": "OTHER_NUMBERS_NOT_SWITCHED",
       "arithmeticCorrect": null,
       "familyCorrect": null
     }
   ],
-  "structuralErrorCodes": ["PART_MINUS_PART"],
+  "structuralErrorCodes": ["OTHER_NUMBERS_NOT_SWITCHED"],
   "arithmeticCorrect": true,
   "familyCorrect": false,
   "scaffoldLevel": 2,
-  "focusId": "addToSubTransfer",
-  "focusLabel": "turn addition into subtraction",
-  "focusReason": "Wrote a true part-minus-part equation instead of starting with the whole.",
-  "focusTargets": { "facts": ["8-3"], "families": ["3+5=8"] },
+  "focusId": "companionSubtraction",
+  "focusLabel": "write the related subtraction",
+  "focusReason": "Kept the first number but did not switch the other two numbers.",
+  "focusTargets": { "facts": ["5-1"], "families": ["1+4=5"] },
   "deficitSignals": [
     {
-      "id": "wholeFirst",
-      "family": "3+5=8",
-      "facts": ["8-3"],
-      "reason": "wrote a true part-minus-part equation instead of starting with the whole"
+      "id": "companionSubtraction",
+      "family": "1+4=5",
+      "facts": ["5-1", "5-4"],
+      "reason": "kept the first number but did not switch the other two numbers"
     }
   ],
   "timeSpentMs": 8421,
@@ -197,6 +202,11 @@ not belong to the displayed family because it did not keep the whole first.
 
 Structural codes currently used:
 
+- `FIRST_NUMBER_CHANGED` — did not keep the first number fixed in a comparison companion task.
+- `OTHER_NUMBERS_NOT_SWITCHED` — copied the given subtraction or failed to switch the other two numbers.
+- `ADDED_ALL_VISIBLE_DOTS` — treated a comparison picture as a put-together picture and used all visible dots.
+- `TRUE_BUT_NOT_MATCHING` — wrote a true equation that does not match the given subtraction.
+- `MATCHING_ADDITION_ERROR` — did not write a valid matching addition for the given subtraction.
 - `PART_MINUS_PART` — wrote a true part-minus-part equation instead of starting with the whole.
 - `WHOLE_NOT_FIRST` / `WRONG_WHOLE` — did not keep the displayed family whole first.
 - `TRUE_BUT_OTHER_FAMILY` — wrote a true equation from a different fact family.
@@ -207,10 +217,15 @@ Structural codes currently used:
 - `PICTURE_WHOLE_COUNT_ERROR` — did not identify the whole as all of the dots together.
 - `PICTURE_ADDITION_ARITHMETIC_ERROR` — used picture numbers but did not write a true addition.
 
+**To analyze comparison transfer:** for `COMPARE_COMPANION`, inspect whether the child changed
+the first number, failed to switch the other two numbers, or added all visible comparison dots.
+For `COMPARE_ADD`, inspect whether the child can turn the given subtraction into a matching
+addition without treating the picture as a put-together total.
+
 **To analyze transfer:** group `answers` rows by `factFamilyId`, then compare first-try
 accuracy on `operation:"addition"` vs `operation:"subtraction"` within each family. A family
 where addition rows are strong but subtraction rows are weak is a secondary subtraction-drill
-candidate after the picture-to-equation work.
+candidate after the companion-subtraction work.
 
 **To analyze picture abstraction:** for `PICTURE_FAMILY`, inspect `answers[]` by component:
 `operation:"count"` reveals whether the colored parts and whole were counted, `operation:"addition"`
@@ -220,5 +235,6 @@ child started from the whole and found the other part.
 Each answer row can also include `skill` and `representation`. Current skills include
 `countFirstGroup`, `countSecondGroup`, `identifyWhole`, `pictureToAddition`,
 `pictureToSubtraction`, `wholeFirst`, `additionToSubtraction`, `companionSubtraction`,
-`familyDiscrimination`, `additionRecall`, `subtractionRecall`, and `subtractionToAddition`.
-Representations currently include `picture` and `equation`.
+`matchingAddition`, `familyDiscrimination`, `additionRecall`, `subtractionRecall`, and
+`subtractionToAddition`.
+Representations currently include `comparisonDots`, `putTogetherDots`, `picture`, and `equation`.

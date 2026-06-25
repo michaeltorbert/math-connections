@@ -6,11 +6,18 @@ Connections.
 ## What it is
 
 Static browser app for James's addition/subtraction fact-family practice. The
-current product target is not generic arithmetic drilling; it is helping James
-turn a colored part-whole picture into the related addition and subtraction
-equations. Symbolic whole-first companion-subtraction work remains secondary
-reinforcement. Sessions should feel like a sequenced tutor moving through one
-relationship, not a random worksheet.
+current product target is not generic arithmetic drilling and not primarily
+addition-first picture families. It is helping James transform a given
+subtraction into the related subtraction:
+
+```text
+5 - 4 = 1  ->  5 - 1 = 4
+```
+
+The child-facing rule is: keep the first number, switch the other two numbers.
+Comparison-dot pictures are the primary scaffold; put-together pictures remain
+maintenance/review. Sessions should feel like a sequenced tutor moving through
+one relationship, not a random worksheet.
 
 There is no build step and no bundler. Keep the app runnable as plain static
 files.
@@ -164,8 +171,14 @@ When refreshing a preview:
 - Keep child-facing practice untimed.
 - Keep child-facing summaries low-pressure; accuracy and error analysis belong
   in the grown-up dashboard/export.
-- For James's current need, prioritize picture-to-equation and structural
-  evidence over raw arithmetic fact accuracy:
+- For James's current need, prioritize subtraction-first comparison transfer and
+  structural evidence over raw arithmetic fact accuracy:
+  - given `a - b = c`, wrote `a - c = b`
+  - kept the first number fixed
+  - switched the other two numbers
+  - interpreted comparison dots as "how many more?", not "how many in all?"
+  - did not add all visible dots in a comparison picture
+  - wrote a matching addition from a given subtraction when asked
   - counted each colored part correctly
   - identified the whole as all dots together
   - wrote `part + part = whole` from the picture, accepting either part order
@@ -176,21 +189,30 @@ When refreshing a preview:
     family `2, 7, 9`
   - logged `PART_MINUS_PART` separately from ordinary arithmetic mistakes
 - Keep the default local scheduler ordered and representationally coherent:
-  picture family, picture family, addition-to-subtraction, companion
-  subtraction, family discrimination, then spaced review. Do not replace this
-  with shuffled practice unless the user explicitly asks for randomization.
+  three comparison companion-subtraction prompts, one comparison matching
+  addition prompt, one symbolic companion-subtraction prompt, then review. Do
+  not replace this with shuffled practice unless the user explicitly asks for
+  randomization.
 - Thread non-review items through one anchor fact family where possible so the
-  child sees the same part/whole relationship across picture, addition,
-  subtraction, and family-discrimination representations.
+  child sees the same comparison relationship across comparison dots, matching
+  addition when asked, symbolic companion subtraction, and review prompts.
 - Log skill and representation metadata at answer-row level. Current skill
   buckets include counting each group, identifying the whole,
   picture-to-addition, picture-to-subtraction, whole-first structure,
-  addition-to-subtraction, companion subtraction, family discrimination,
-  addition recall, subtraction recall, and subtraction-to-addition.
+  addition-to-subtraction, companion subtraction, matching addition, family
+  discrimination, addition recall, subtraction recall, and subtraction-to-addition.
+- Keep representations distinct: `comparisonDots` for compare/how-many-more
+  pictures, `putTogetherDots` for how-many-in-all pictures, and `equation` for
+  symbolic transfer.
+- Log comparison-specific structural errors: `FIRST_NUMBER_CHANGED`,
+  `OTHER_NUMBERS_NOT_SWITCHED`, `ADDED_ALL_VISIBLE_DOTS`,
+  `TRUE_BUT_NOT_MATCHING`, `ARITHMETIC_ERROR`, and
+  `MATCHING_ADDITION_ERROR`.
 - Keep autonomous correction local and low-pressure: first wrong answer gives
-  conceptual feedback, second adds scaffold, third models the relationship and
-  sends the child to a near-transfer item. Preserve first-response data in the
-  log even when a later scaffold leads to the final answer.
+  "the first number stays the same," second says to switch the other two
+  numbers, third models the relationship and sends the child to a near-transfer
+  item. Preserve first-response data in the log even when a later scaffold
+  leads to the final answer.
 - Render imported config errors and user-controlled text with `textContent` or
   DOM text nodes, not `innerHTML`.
 - Validate adaptive configs defensively: parse facts/families, confirm

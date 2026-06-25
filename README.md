@@ -6,10 +6,10 @@ James, age 6). It's a kinder, more concrete take on Math Mammoth's
 practice — and it **logs every answer** so an AI (ChatGPT or Claude) can analyze how it's
 going and hand back tuning instructions the app can import.
 
-> The big idea: two colored parts make one whole. The child first turns the picture into
-> quantities, then writes `part + part = whole`, then writes `whole − part = part`.
-> Symbolic fact-family work stays in the rotation, but picture → equation abstraction is
-> the default center of practice.
+> The big idea: when a subtraction is given, the first number stays the same and
+> the other two numbers switch. For example, `5 − 4 = 1` connects to
+> `5 − 1 = 4`. Comparison-dot pictures scaffold that idea first; put-together
+> pictures stay in the rotation as maintenance.
 
 ## Run it
 
@@ -24,15 +24,15 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 
 1. Pick a level on the home screen: **Within 5**, **Within 10**, or **Within 20**.
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
-3. For each problem the child sees a small colored-dot picture or a short symbolic
+3. For each problem the child sees either a comparison-dot picture or a short symbolic
    reinforcement prompt.
-4. The default six-item session follows one fact family across representations:
-   - **PICTURE_FAMILY** — count the colored parts and whole, write the addition, then
-     write the related subtraction.
-   - **ADD_TO_SUB** — given `4 + 1 = 5`, construct both matching subtractions.
-   - **COMPANION** — given `5 − 4 = 1`, construct `5 − 1 = 4`.
-   - **NOT_FAMILY** — choose which true subtraction belongs to the displayed family.
-   - **SPACED_REVIEW** — revisit the weakest recent skill or a recent miss.
+4. The default six-item session centers subtraction-first transfer:
+   - **COMPARE_COMPANION** — see comparison dots and `5 − 4 = 1`, then write `5 − 1 = 4`.
+   - **COMPARE_ADD** — see comparison dots and `5 − 4 = 1`, then write `4 + 1 = 5`
+     or `1 + 4 = 5`.
+   - **COMPANION** — without the picture, write the related subtraction.
+   - **SPACED_REVIEW** — revisit a recent weak skill, often picture-family or
+     true-but-wrong-family review.
 5. The strategy question is only asked at the end of the session, so practice does not stop
    after every item.
 
@@ -44,9 +44,8 @@ Tap **👪 Grown-ups** (top-right) for:
 
 - **Stats** — problems, first-try %, sessions, facts mastered.
 - **Focus suggestion** — the app's own read on what to practice next.
-- **Structural error codes** — whether James kept the whole first, switched the parts, or
-  chose a true equation from the wrong family, plus picture counting and picture-mapping
-  misses.
+- **Structural error codes** — whether James kept the first number, switched the other two,
+  added all visible comparison dots, or chose a true equation that did not match.
 - **Add ↔ Subtract transfer** — per family, addition accuracy vs subtraction accuracy
   (the clearest signal of whether the *connection* is clicking).
 - **Fact mastery** — a per-fact box from 1 (needs work) to 5 (solid).
@@ -88,16 +87,24 @@ The app now also classifies the **kind** of miss before choosing the next proble
 
 - addition fact recall
 - subtraction fact recall
+- subtraction → companion subtraction transfer
+- comparison picture interpretation
+- matching addition from a given subtraction
 - addition → subtraction transfer
 - subtraction → addition transfer
-- picture → equation mapping
+- put-together picture → equation mapping
 - whole-first structure errors
 - true-but-wrong-family equations such as `7 − 2 = 5` for the family `2, 7, 9`
 
 The local scheduler works without the AI loop. By default it uses an ordered sequence:
-picture, picture, addition-to-subtraction, companion subtraction, family discrimination,
-then spaced review. The non-review items share one anchor fact family so the same structure
-moves across representations instead of appearing as unrelated drills.
+comparison companion, comparison companion, comparison companion, comparison matching
+addition, symbolic companion subtraction, then review. The non-review items share one
+anchor fact family so the same structure moves across representations instead of appearing
+as unrelated drills.
+
+The app keeps **COMPARE** and **PUT TOGETHER** pictures separate. In compare problems, visible
+dots show "how many more?" and the first subtraction number stays fixed. In put-together
+problems, all visible dots form the whole.
 
 Problem type and family selection are biased toward that current focus. The dashboard shows
 the focus, why it was picked, and which facts/families are being targeted.

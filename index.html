@@ -85,6 +85,11 @@ button:disabled{cursor:default}
 .story{font-size:clamp(22px,4.5vw,30px);font-weight:800;text-align:center;line-height:1.32;
   margin:8px auto 18px;max-width:640px}
 .story .em{color:var(--orange-d)}
+.activity-label{width:max-content;margin:2px auto 10px;border-radius:6px;padding:5px 9px;
+  font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;border:1px solid #d8e2ee;
+  color:#17395f;background:#f8fafc}
+.activity-label.compare{color:#5b21b6;background:#f5f3ff;border-color:#ddd6fe}
+.activity-label.put-together{color:#92400e;background:#fffbeb;border-color:#fde68a}
 .progress-dots{display:flex;gap:7px;justify-content:center;margin:2px 0 10px}
 .progress-dots i{width:14px;height:14px;border-radius:50%;background:#cbd5e1;display:inline-block}
 .progress-dots i.done{background:var(--green)}
@@ -102,6 +107,17 @@ button:disabled{cursor:default}
 .dot{width:22px;height:22px;border-radius:50%;display:inline-block;border:1px solid rgba(15,35,63,0.1)}
 .dot.a{background:var(--blue)}
 .dot.b{background:var(--green)}
+.compare-model{display:grid;gap:8px;justify-content:center;margin:0 auto 18px}
+.compare-row{display:flex;align-items:center;justify-content:center;gap:6px;min-height:26px}
+.compare-row-label{width:82px;text-align:right;font-size:13px;font-weight:800;color:var(--ink-soft)}
+.compare-cell{width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.compare-cell.empty{border:1px dashed #cbd5e1;border-radius:50%;opacity:.75}
+.compare-cell.extra .dot{outline:3px solid #fde68a;outline-offset:2px}
+.compare-caption{text-align:center;font-size:13px;font-weight:800;color:#5b21b6}
+.compare-model.loose{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.compare-model.loose .compare-group{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:260px;
+  border:1px dashed #d8e2ee;border-radius:8px;padding:10px 12px;background:#fff}
+.compare-model.loose .compare-group-label{width:100%;font-size:12px;font-weight:900;color:var(--ink-soft);text-align:center;text-transform:uppercase}
 
 .equation-set{display:grid;gap:18px;justify-items:center;margin:0 auto 20px}
 .equation-row{display:flex;align-items:center;justify-content:center;gap:14px;min-height:58px;
@@ -223,7 +239,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -237,10 +253,10 @@ const KEYS = {
 
 const MODES = ["factFamily"];                 // single, focused activity
 const LEGACY_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
-const STRUCTURE_TYPES = ["PICTURE_FAMILY", "COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
+const STRUCTURE_TYPES = ["COMPARE_COMPANION", "COMPARE_ADD", "PICTURE_FAMILY", "COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
 const PROBLEM_TYPES = [...STRUCTURE_TYPES, ...LEGACY_TYPES];
 const REVIEW_SLOT = "SPACED_REVIEW";
-const SESSION_TYPE_ORDER = ["PICTURE_FAMILY", "ADD_TO_SUB", "COMPANION", "NOT_FAMILY", "WHOLE_FIRST", "ADD", "SUB1", "SUB2", "CONNECT"];
+const SESSION_TYPE_ORDER = ["COMPARE_COMPANION", "COMPARE_ADD", "COMPANION", "PICTURE_FAMILY", "NOT_FAMILY", "ADD_TO_SUB", "WHOLE_FIRST", "ADD", "SUB1", "SUB2", "CONNECT"];
 
 // Default adaptive config. Everything the AI loop can change lives here.
 const DEFAULT_CONFIG = Object.freeze({
@@ -254,10 +270,12 @@ const DEFAULT_CONFIG = Object.freeze({
   avoidFamilies: [],
   emphasizeFacts: [],
   problemTypeMix: {
-    PICTURE_FAMILY: 0.4,
-    ADD_TO_SUB: 0.2,
-    COMPANION: 0.2,
-    NOT_FAMILY: 0.2,
+    COMPARE_COMPANION: 0.5,
+    COMPARE_ADD: 0.17,
+    COMPANION: 0.17,
+    PICTURE_FAMILY: 0.1,
+    NOT_FAMILY: 0.06,
+    ADD_TO_SUB: 0,
     WHOLE_FIRST: 0,
     ADD: 0,
     SUB1: 0,
@@ -296,35 +314,40 @@ const STRATEGIES = [
 ];
 
 const FOCUS_DEFS = Object.freeze({
+  companionSubtraction: {
+    label: "write the related subtraction",
+    plan: "Keep the first number. Switch the other two numbers.",
+    multipliers: { COMPARE_COMPANION: 5, COMPARE_ADD: 1.6, COMPANION: 3.2, PICTURE_FAMILY: .6, ADD_TO_SUB: .8, NOT_FAMILY: 1.2, WHOLE_FIRST: 1, ADD: .4, SUB1: .6, SUB2: .6, CONNECT: .5 },
+  },
   additionRecall: {
     label: "addition fact recall",
     plan: "Practice addition rows first, then connect them to the family.",
-    multipliers: { PICTURE_FAMILY: 2.8, ADD: 3, ADD_TO_SUB: 2.4, COMPANION: 1.2, SUB1: 1, SUB2: 1, CONNECT: 1.2, NOT_FAMILY: .7, WHOLE_FIRST: .7 },
+    multipliers: { COMPARE_COMPANION: 1.2, COMPARE_ADD: 2.4, PICTURE_FAMILY: 1.2, ADD: 3, ADD_TO_SUB: 1.4, COMPANION: 1.2, SUB1: 1, SUB2: 1, CONNECT: 1.2, NOT_FAMILY: .7, WHOLE_FIRST: .7 },
   },
   subtractionRecall: {
     label: "subtraction fact recall",
     plan: "Practice taking away before asking for the matching addition.",
-    multipliers: { PICTURE_FAMILY: 2.4, COMPANION: 3, ADD_TO_SUB: 2.2, SUB1: 2.2, SUB2: 2.2, ADD: .8, CONNECT: 1, NOT_FAMILY: .7, WHOLE_FIRST: 1.4 },
+    multipliers: { COMPARE_COMPANION: 4, COMPARE_ADD: 1.3, PICTURE_FAMILY: .8, COMPANION: 3, ADD_TO_SUB: 1.4, SUB1: 2.2, SUB2: 2.2, ADD: .8, CONNECT: 1, NOT_FAMILY: .7, WHOLE_FIRST: 1.4 },
   },
   addToSubTransfer: {
     label: "turn addition into subtraction",
     plan: "Keep the whole first, then switch the two parts.",
-    multipliers: { PICTURE_FAMILY: 3.8, COMPANION: 4.2, ADD_TO_SUB: 4, NOT_FAMILY: 1.8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: .6, SUB2: .6, CONNECT: 1.2 },
+    multipliers: { COMPARE_COMPANION: 3.2, COMPARE_ADD: 1.4, PICTURE_FAMILY: 1.2, COMPANION: 4.2, ADD_TO_SUB: 3.2, NOT_FAMILY: 1.8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: .6, SUB2: .6, CONNECT: 1.2 },
   },
   subToAddTransfer: {
     label: "turn subtraction into addition",
     plan: "Solve a take-away fact, then rebuild the matching addition.",
-    multipliers: { PICTURE_FAMILY: 2, SUB1: 3, SUB2: 3, COMPANION: 2.2, ADD_TO_SUB: 1.4, ADD: .8, CONNECT: .8, NOT_FAMILY: 1, WHOLE_FIRST: 1 },
+    multipliers: { COMPARE_COMPANION: 2.6, COMPARE_ADD: 3.8, PICTURE_FAMILY: .8, SUB1: 3, SUB2: 3, COMPANION: 2.2, ADD_TO_SUB: 1.4, ADD: .8, CONNECT: .8, NOT_FAMILY: 1, WHOLE_FIRST: 1 },
   },
   pictureToEquation: {
     label: "turn pictures into equations",
-    plan: "Start from a small picture and write the equations it shows.",
-    multipliers: { PICTURE_FAMILY: 5, CONNECT: 2, WHOLE_FIRST: 1.6, ADD_TO_SUB: 1.2, COMPANION: 1, ADD: .7, SUB1: .5, SUB2: .5, NOT_FAMILY: 1 },
+    plan: "Keep put-together pictures separate from comparison pictures.",
+    multipliers: { COMPARE_COMPANION: 1.4, COMPARE_ADD: 1.2, PICTURE_FAMILY: 4, CONNECT: 2, WHOLE_FIRST: 1.6, ADD_TO_SUB: 1.2, COMPANION: 1, ADD: .7, SUB1: .5, SUB2: .5, NOT_FAMILY: 1 },
   },
   wholeFirst: {
     label: "find the whole before subtracting",
     plan: "Pick the whole first; subtraction in this family starts with the whole.",
-    multipliers: { PICTURE_FAMILY: 3.2, WHOLE_FIRST: 4.4, NOT_FAMILY: 3.2, COMPANION: 2.4, ADD_TO_SUB: 1.8, ADD: .5, SUB1: .7, SUB2: .7, CONNECT: 1 },
+    multipliers: { COMPARE_COMPANION: 3.6, COMPARE_ADD: 1.4, PICTURE_FAMILY: 1.4, WHOLE_FIRST: 4.4, NOT_FAMILY: 3.2, COMPANION: 2.4, ADD_TO_SUB: 1.8, ADD: .5, SUB1: .7, SUB2: .7, CONNECT: 1 },
   },
 });
 
@@ -455,12 +478,17 @@ function factsOfFamilyId(id){
 }
 function isStructuralType(type){ return STRUCTURE_TYPES.includes(type); }
 function isPictureFamilyType(type){ return type === "PICTURE_FAMILY"; }
-function needsDistinctParts(type){ return type === "PICTURE_FAMILY" || type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
+function isCompareType(type){ return type === "COMPARE_COMPANION" || type === "COMPARE_ADD"; }
+function needsDistinctParts(type){ return isCompareType(type) || type === "PICTURE_FAMILY" || type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
 function relevantFact(type, fam){
   switch(type){
     case "ADD":  return `${fam.a}+${fam.b}`;
     case "SUB1": return `${fam.whole}-${fam.a}`;   // answer = b
     case "SUB2": return `${fam.whole}-${fam.b}`;   // answer = a
+    case "COMPARE_COMPANION":
+      return `${fam.whole}-${fam.a}`;
+    case "COMPARE_ADD":
+      return `${fam.a}+${fam.b}`;
     case "PICTURE_FAMILY":
       return `${fam.a}+${fam.b}`;
     case "COMPANION":
@@ -586,21 +614,26 @@ function buildSessionTypePlan(cfg, focus){
   return plan.slice(0, length);
 }
 
+function mixMatches(mix, target){
+  return PROBLEM_TYPES.every(type => Math.abs((Number(mix[type]) || 0) - (Number(target[type]) || 0)) < 1e-9);
+}
+
 function usesDefaultProblemTypeMix(mix){
-  return PROBLEM_TYPES.every(type => Math.abs((Number(mix[type]) || 0) - (Number(DEFAULT_CONFIG.problemTypeMix[type]) || 0)) < 1e-9);
+  const legacyPictureDefault = { PICTURE_FAMILY: 0.4, ADD_TO_SUB: 0.2, COMPANION: 0.2, NOT_FAMILY: 0.2 };
+  return mixMatches(mix, DEFAULT_CONFIG.problemTypeMix) || mixMatches(mix, legacyPictureDefault);
 }
 
 function buildConceptualSessionPlan(length, focus){
-  const weakest = focus && focus.id ? focus.id : "pictureToEquation";
+  const weakest = focus && focus.id ? focus.id : "companionSubtraction";
   const current = typesForFocus(weakest);
   const prereq = prerequisiteTypesForFocus(weakest);
   const transfer = transferTypesForFocus(weakest);
   const plan = [
-    "PICTURE_FAMILY",
-    "PICTURE_FAMILY",
-    "ADD_TO_SUB",
+    "COMPARE_COMPANION",
+    "COMPARE_COMPANION",
+    "COMPARE_COMPANION",
+    "COMPARE_ADD",
     "COMPANION",
-    "NOT_FAMILY",
     REVIEW_SLOT,
   ];
   if (state.problemLog.length >= 6 && current[0]){
@@ -609,7 +642,7 @@ function buildConceptualSessionPlan(length, focus){
     plan[2] = prereq[0] || plan[2];
     plan[3] = transfer[0] || plan[3];
   }
-  const extension = [REVIEW_SLOT, current[0] || "PICTURE_FAMILY", prereq[0] || "PICTURE_FAMILY", transfer[0] || "NOT_FAMILY"];
+  const extension = [REVIEW_SLOT, current[0] || "COMPARE_COMPANION", prereq[0] || "COMPARE_COMPANION", transfer[0] || "NOT_FAMILY"];
   for (let i = 0; plan.length < length; i++){
     plan.push(extension[i % extension.length]);
   }
@@ -618,36 +651,39 @@ function buildConceptualSessionPlan(length, focus){
 
 function typesForFocus(focusId){
   switch(focusId){
+    case "companionSubtraction": return ["COMPARE_COMPANION", "COMPARE_COMPANION"];
     case "pictureToEquation": return ["PICTURE_FAMILY", "PICTURE_FAMILY"];
-    case "wholeFirst": return ["NOT_FAMILY", "COMPANION"];
-    case "addToSubTransfer": return ["ADD_TO_SUB", "COMPANION"];
-    case "subToAddTransfer": return ["COMPANION", "ADD_TO_SUB"];
-    case "subtractionRecall": return ["COMPANION", "SUB1"];
-    case "additionRecall": return ["PICTURE_FAMILY", "ADD"];
-    default: return ["PICTURE_FAMILY", "ADD_TO_SUB"];
+    case "wholeFirst": return ["COMPARE_COMPANION", "NOT_FAMILY"];
+    case "addToSubTransfer": return ["COMPARE_COMPANION", "COMPANION"];
+    case "subToAddTransfer": return ["COMPARE_ADD", "SUB1"];
+    case "subtractionRecall": return ["COMPARE_COMPANION", "COMPANION"];
+    case "additionRecall": return ["COMPARE_ADD", "ADD"];
+    default: return ["COMPARE_COMPANION", "COMPARE_ADD"];
   }
 }
 
 function prerequisiteTypesForFocus(focusId){
   switch(focusId){
+    case "companionSubtraction": return ["COMPARE_COMPANION"];
     case "pictureToEquation": return ["PICTURE_FAMILY"];
-    case "wholeFirst": return ["PICTURE_FAMILY"];
-    case "addToSubTransfer": return ["PICTURE_FAMILY"];
-    case "subToAddTransfer": return ["COMPANION"];
-    case "subtractionRecall": return ["ADD_TO_SUB"];
-    case "additionRecall": return ["PICTURE_FAMILY"];
-    default: return ["PICTURE_FAMILY"];
+    case "wholeFirst": return ["COMPARE_COMPANION"];
+    case "addToSubTransfer": return ["COMPARE_COMPANION"];
+    case "subToAddTransfer": return ["COMPARE_COMPANION"];
+    case "subtractionRecall": return ["COMPARE_COMPANION"];
+    case "additionRecall": return ["COMPARE_ADD"];
+    default: return ["COMPARE_COMPANION"];
   }
 }
 
 function transferTypesForFocus(focusId){
   switch(focusId){
-    case "pictureToEquation": return ["ADD_TO_SUB"];
+    case "companionSubtraction": return ["COMPANION"];
+    case "pictureToEquation": return ["PICTURE_FAMILY"];
     case "wholeFirst": return ["NOT_FAMILY"];
-    case "addToSubTransfer": return ["NOT_FAMILY"];
-    case "subToAddTransfer": return ["ADD_TO_SUB"];
-    case "subtractionRecall": return ["NOT_FAMILY"];
-    case "additionRecall": return ["COMPANION"];
+    case "addToSubTransfer": return ["COMPANION"];
+    case "subToAddTransfer": return ["COMPARE_ADD"];
+    case "subtractionRecall": return ["COMPANION"];
+    case "additionRecall": return ["COMPARE_ADD"];
     default: return ["NOT_FAMILY"];
   }
 }
@@ -662,7 +698,7 @@ function focusedTypeMix(mix, focus){
   return out;
 }
 
-function focusDef(id){ return FOCUS_DEFS[id] || FOCUS_DEFS.addToSubTransfer; }
+function focusDef(id){ return FOCUS_DEFS[id] || FOCUS_DEFS.companionSubtraction; }
 
 function answerEntries(record){
   if (Array.isArray(record.answers) && record.answers.length){
@@ -711,6 +747,16 @@ function classifyDeficitSignals(record){
       family: record.factFamilyId || familyIdForFact(record.fact),
       reason: code === "PART_MINUS_PART"
         ? "wrote a true part-minus-part equation instead of starting with the whole"
+        : code === "FIRST_NUMBER_CHANGED"
+          ? "changed the first number instead of keeping it fixed"
+        : code === "OTHER_NUMBERS_NOT_SWITCHED"
+          ? "kept the first number but did not switch the other two numbers"
+        : code === "ADDED_ALL_VISIBLE_DOTS"
+          ? "treated a comparison picture like a put-together picture and used all visible dots"
+        : code === "TRUE_BUT_NOT_MATCHING"
+          ? "wrote a true equation that did not match the given subtraction"
+        : code === "MATCHING_ADDITION_ERROR"
+          ? "did not write the matching addition for the given subtraction"
         : code === "ARITHMETIC_ERROR"
           ? "kept the family structure but made an arithmetic subtraction error"
         : code === "DUPLICATE_SUBTRACTION"
@@ -779,6 +825,14 @@ function classifyDeficitSignals(record){
       push(addMisses.length ? "pictureToEquation" : "addToSubTransfer",
         subMisses.map(a => a.fact),
         addMisses.length ? "picture equations were not mapped consistently" : "picture addition was right but subtraction was missed");
+    }
+  } else if (record.problemType === "COMPARE_COMPANION"){
+    if (subMisses.length){
+      push("companionSubtraction", subMisses.map(a => a.fact), "given a subtraction, did not switch the other two numbers");
+    }
+  } else if (record.problemType === "COMPARE_ADD"){
+    if (addMisses.length){
+      push("subToAddTransfer", addMisses.map(a => a.fact), "given a subtraction, did not write the matching addition");
     }
   }
 
@@ -897,18 +951,18 @@ function weakFactFallback(profile){
 function derivePracticeFocus(records){
   const profile = buildDeficitProfile(records || state.problemLog);
   if (profile.total < 4){
-    const def = focusDef("addToSubTransfer");
-    return Object.assign({ id: "addToSubTransfer", targetFacts: [], targetFamilies: [],
-      reason: "Not enough data yet, so the session starts with the core addition-subtraction connection.",
+    const def = focusDef("companionSubtraction");
+    return Object.assign({ id: "companionSubtraction", targetFacts: [], targetFamilies: [],
+      reason: "Not enough data yet, so the session starts with the core subtraction-to-subtraction connection.",
       score: 0, samples: profile.total }, def);
   }
   const scored = Object.values(profile.focus).filter(f => f.score > 0)
     .sort((a,b) => b.score - a.score);
   const picked = scored[0] || weakFactFallback(profile);
   if (!picked){
-    const def = focusDef("addToSubTransfer");
-    return Object.assign({ id: "addToSubTransfer", targetFacts: [], targetFamilies: [],
-      reason: "No clear weak spot yet, so the app keeps rotating through the connection.",
+    const def = focusDef("companionSubtraction");
+    return Object.assign({ id: "companionSubtraction", targetFacts: [], targetFamilies: [],
+      reason: "No clear weak spot yet, so the app keeps rotating through the subtraction companion connection.",
       score: 0, samples: profile.total }, def);
   }
   const def = focusDef(picked.id);
@@ -985,6 +1039,28 @@ function pictureSubtractionKeys(p){
   ];
 }
 
+function compareInfo(p){
+  return p.compare || {
+    start: p.whole,
+    givenSub: p.b,
+    givenAnswer: p.a,
+    totalVisible: p.whole + p.b,
+  };
+}
+
+function compareCompanionKey(p){
+  const info = compareInfo(p);
+  return constructRowKey([info.start, info.givenAnswer, info.givenSub]);
+}
+
+function compareAdditionKeys(p){
+  const info = compareInfo(p);
+  return [
+    constructRowKey([info.givenSub, info.givenAnswer, info.start]),
+    constructRowKey([info.givenAnswer, info.givenSub, info.start]),
+  ];
+}
+
 function gradePictureAdditionRow(p, row, values){
   const grade = {
     row,
@@ -1041,6 +1117,88 @@ function gradePictureCountRow(p, row, values){
   if (!grade.isCorrect){
     grade.errorCode = row.role === "whole" ? "PICTURE_WHOLE_COUNT_ERROR" : "PICTURE_PART_COUNT_ERROR";
   }
+  return grade;
+}
+
+function gradeCompareCompanionRow(p, row, values){
+  const grade = {
+    row,
+    values,
+    isCorrect: false,
+    errorCode: null,
+    arithmeticCorrect: null,
+    familyCorrect: false,
+    acceptedExpected: row.expected || [],
+  };
+  if (!allNumbers(values)) return grade;
+
+  const info = compareInfo(p);
+  const [first, subtrahend, difference] = values;
+  const key = constructRowKey(values);
+  grade.arithmeticCorrect = first - subtrahend === difference;
+
+  if (key === compareCompanionKey(p)){
+    grade.isCorrect = true;
+    grade.familyCorrect = true;
+    grade.acceptedExpected = values.slice();
+    return grade;
+  }
+  if (values.includes(info.totalVisible)){
+    grade.errorCode = "ADDED_ALL_VISIBLE_DOTS";
+    return grade;
+  }
+  if (first !== info.start){
+    grade.errorCode = "FIRST_NUMBER_CHANGED";
+    return grade;
+  }
+  if (subtrahend === info.givenSub && difference === info.givenAnswer){
+    grade.errorCode = "OTHER_NUMBERS_NOT_SWITCHED";
+    return grade;
+  }
+  if (grade.arithmeticCorrect){
+    grade.errorCode = "TRUE_BUT_NOT_MATCHING";
+    return grade;
+  }
+  if ([subtrahend, difference].includes(info.givenSub) || [subtrahend, difference].includes(info.givenAnswer)){
+    grade.errorCode = "OTHER_NUMBERS_NOT_SWITCHED";
+    return grade;
+  }
+  grade.errorCode = "ARITHMETIC_ERROR";
+  return grade;
+}
+
+function gradeCompareAdditionRow(p, row, values){
+  const grade = {
+    row,
+    values,
+    isCorrect: false,
+    errorCode: null,
+    arithmeticCorrect: null,
+    familyCorrect: false,
+    acceptedExpected: row.expected || [],
+  };
+  if (!allNumbers(values)) return grade;
+
+  const info = compareInfo(p);
+  const [left, right, sum] = values;
+  const key = constructRowKey(values);
+  grade.arithmeticCorrect = left + right === sum;
+
+  if (compareAdditionKeys(p).includes(key)){
+    grade.isCorrect = true;
+    grade.familyCorrect = true;
+    grade.acceptedExpected = values.slice();
+    return grade;
+  }
+  if (values.includes(info.totalVisible) || left + right === info.totalVisible || sum === info.totalVisible){
+    grade.errorCode = "ADDED_ALL_VISIBLE_DOTS";
+    return grade;
+  }
+  if (grade.arithmeticCorrect){
+    grade.errorCode = "TRUE_BUT_NOT_MATCHING";
+    return grade;
+  }
+  grade.errorCode = "MATCHING_ADDITION_ERROR";
   return grade;
 }
 
@@ -1105,6 +1263,8 @@ function gradeConstructRows(p, results){
     if (row.skill === "pictureCount") return gradePictureCountRow(p, row, values);
     if (row.skill === "pictureAddition") return gradePictureAdditionRow(p, row, values);
     if (row.skill === "pictureSubtraction") return gradePictureSubtractionRow(p, row, values, usedPictureSubtractions);
+    if (row.skill === "compareCompanion") return gradeCompareCompanionRow(p, row, values);
+    if (row.skill === "compareAddition") return gradeCompareAdditionRow(p, row, values);
     const grade = {
       row,
       values,
@@ -1162,9 +1322,11 @@ function applyConstructRowGrades(p, results){
     for (let i = 0; i < grade.row.fieldIds.length; i++){
       const result = byId[grade.row.fieldIds[i]];
       if (!result) continue;
-      result.isCorrect = grade.isCorrect;
-      result.expected = grade.acceptedExpected[i];
-      result.errorCode = grade.errorCode;
+      const expected = grade.acceptedExpected[i];
+      const fieldCorrect = grade.isCorrect || result.submitted === expected;
+      result.isCorrect = fieldCorrect;
+      result.expected = expected;
+      result.errorCode = fieldCorrect ? null : grade.errorCode;
       result.arithmeticCorrect = grade.arithmeticCorrect;
       result.familyCorrect = grade.familyCorrect;
     }
@@ -1201,10 +1363,8 @@ function structuralArithmeticCorrect(p, results){
   }
   const rows = p.constructRows || [];
   if (!rows.length) return null;
-  return rows.every(row => {
-    const values = structuralRowValues(row, results);
-    return allNumbers(values) && values[0] - values[1] === values[2];
-  });
+  const grades = gradeConstructRows(p, results);
+  return grades.length ? grades.every(grade => grade.arithmeticCorrect === true) : null;
 }
 
 function structuralFamilyCorrect(p, results){
@@ -1222,11 +1382,14 @@ function structuralFamilyCorrect(p, results){
 }
 
 function focusForErrorCode(code){
+  if (code === "FIRST_NUMBER_CHANGED" || code === "OTHER_NUMBERS_NOT_SWITCHED" || code === "TRUE_BUT_NOT_MATCHING") return "companionSubtraction";
+  if (code === "ADDED_ALL_VISIBLE_DOTS") return "companionSubtraction";
+  if (code === "MATCHING_ADDITION_ERROR") return "subToAddTransfer";
   if (code === "PART_MINUS_PART" || code === "WHOLE_NOT_FIRST" || code === "WRONG_WHOLE" || code === "TRUE_BUT_OTHER_FAMILY") return "wholeFirst";
   if (code === "PICTURE_PART_COUNT_ERROR" || code === "PICTURE_WHOLE_COUNT_ERROR" || code === "PICTURE_ADDITION_ARITHMETIC_ERROR") return "pictureToEquation";
   if (code === "ARITHMETIC_ERROR") return "subtractionRecall";
   if (code === "PARTS_NOT_SWITCHED" || code === "WRONG_PART_POSITION" || code === "DUPLICATE_SUBTRACTION") return "addToSubTransfer";
-  return "addToSubTransfer";
+  return "companionSubtraction";
 }
 
 /* =========================================================================
@@ -1398,8 +1561,8 @@ function makeStructuralField(id, expected, role, fact, extra){
   });
 }
 
-function makeConstructRow(label, fieldIds, expected, skill){
-  return { label, fieldIds, expected, skill };
+function makeConstructRow(label, fieldIds, expected, skill, extra){
+  return { label, fieldIds, expected, skill, ...(extra || {}) };
 }
 
 function addField(fields, id, expected, role, fact, extra){
@@ -1415,7 +1578,16 @@ function knownPart(value, cls){
 function makePictureField(id, expected, role, operation, fact, extra){
   return makeField(id, "", expected, "", fact, operation, {
     role,
-    representation: "picture",
+    representation: "putTogetherDots",
+    tracksMastery: false,
+    ...(extra || {}),
+  });
+}
+
+function makeCompareField(id, expected, role, operation, fact, extra){
+  return makeField(id, "", expected, "", fact, operation, {
+    role,
+    representation: "comparisonDots",
     tracksMastery: false,
     ...(extra || {}),
   });
@@ -1423,6 +1595,12 @@ function makePictureField(id, expected, role, operation, fact, extra){
 
 function pictureRow(id, label, stage, fieldIds, expected, skill, parts){
   return { id, label, stage, fieldIds, expected, skill, parts };
+}
+
+function constructRowCanonical(row){
+  const expected = row.expected || [];
+  if (row.operation === "addition") return `${expected[0]}+${expected[1]}=${expected[2]}`;
+  return `${expected[0]}-${expected[1]}=${expected[2]}`;
 }
 
 function pictureRowsForStage(p, stageIndex){
@@ -1461,10 +1639,91 @@ function generateFactFamilyProblem(typeOverride, options){
   const scaffoldLevel = options.scaffoldLevel || deriveScaffoldLevel();
   let prompt, givenEquation = "", fields = [], visual = false, operation = "addition";
   let constructRows = null, numberTiles = null, choiceOptions = null, pictureStages = null;
+  let compare = null, visualModel = null, activityLabel = null;
 
-  if (type === "PICTURE_FAMILY"){
+  if (type === "COMPARE_COMPANION"){
     operation = "structure";
     visual = true;
+    visualModel = "comparisonDots";
+    activityLabel = "COMPARE";
+    const givenSub = fam.b;
+    const givenAnswer = fam.a;
+    const companionFact = `${fam.whole}-${givenAnswer}`;
+    compare = {
+      start: fam.whole,
+      givenSub,
+      givenAnswer,
+      totalVisible: fam.whole + givenSub,
+      aligned: scaffoldLevel <= 3,
+    };
+    prompt = "Write the other subtraction. Keep the first number. Switch the other two numbers.";
+    givenEquation = `${fam.whole} − ${givenSub} = ${givenAnswer}`;
+    numberTiles = shuffled([
+      { value: fam.whole, role: "whole", label: scaffoldLevel <= 2 ? "Stays first" : "" },
+      { value: givenSub, role: "part", label: scaffoldLevel <= 2 ? "Switch" : "" },
+      { value: givenAnswer, role: "part", label: scaffoldLevel <= 2 ? "Switch" : "" },
+    ]);
+    fields = [];
+    constructRows = [makeConstructRow("other subtraction", ["cmpWhole", "cmpSub", "cmpAnswer"],
+      [fam.whole, givenAnswer, givenSub], "compareCompanion", { operation: "subtraction" })];
+    const rowParts = [];
+    if (scaffoldLevel <= 2){
+      fields.push(makeCompareField("cmpWhole", fam.whole, "whole", "subtraction", companionFact, { locked: true, skill: "wholeFirst" }));
+      rowParts.push(knownPart(fam.whole, "known blankish whole-lock"));
+    } else {
+      fields.push(makeCompareField("cmpWhole", fam.whole, "whole", "subtraction", companionFact, { skill: "wholeFirst" }));
+      rowParts.push({ type:"field", id:"cmpWhole" });
+    }
+    rowParts.push({ type:"text", text:"−", className:"op" });
+    fields.push(makeCompareField("cmpSub", givenAnswer, "subtrahend", "subtraction", companionFact, { skill: "companionSubtraction" }));
+    rowParts.push({ type:"field", id:"cmpSub" });
+    rowParts.push({ type:"text", text:"=", className:"equals" });
+    fields.push(makeCompareField("cmpAnswer", givenSub, "difference", "subtraction", companionFact, { skill: "companionSubtraction" }));
+    rowParts.push({ type:"field", id:"cmpAnswer" });
+    constructRows[0].parts = rowParts;
+  } else if (type === "COMPARE_ADD"){
+    operation = "structure";
+    visual = true;
+    visualModel = "comparisonDots";
+    activityLabel = "COMPARE";
+    const givenSub = fam.b;
+    const givenAnswer = fam.a;
+    const addFact = `${fam.a}+${fam.b}`;
+    compare = {
+      start: fam.whole,
+      givenSub,
+      givenAnswer,
+      totalVisible: fam.whole + givenSub,
+      aligned: scaffoldLevel <= 3,
+    };
+    prompt = "Write a matching addition for the subtraction.";
+    givenEquation = `${fam.whole} − ${givenSub} = ${givenAnswer}`;
+    numberTiles = shuffled([
+      { value: fam.whole, role: "whole", label: scaffoldLevel <= 2 ? "Total in equation" : "" },
+      { value: givenSub, role: "part", label: scaffoldLevel <= 2 ? "Part" : "" },
+      { value: givenAnswer, role: "part", label: scaffoldLevel <= 2 ? "Part" : "" },
+    ]);
+    fields = [
+      makeCompareField("cmpAddLeft", givenSub, "addend", "addition", addFact, { skill: "matchingAddition" }),
+      makeCompareField("cmpAddRight", givenAnswer, "addend", "addition", addFact, { skill: "matchingAddition" }),
+      makeCompareField("cmpAddWhole", fam.whole, "sum", "addition", addFact, { skill: "matchingAddition" }),
+    ];
+    constructRows = [makeConstructRow("matching addition", ["cmpAddLeft", "cmpAddRight", "cmpAddWhole"],
+      [givenSub, givenAnswer, fam.whole], "compareAddition", {
+        operation: "addition",
+        parts: [
+          { type:"field", id:"cmpAddLeft" },
+          { type:"text", text:"+", className:"op" },
+          { type:"field", id:"cmpAddRight" },
+          { type:"text", text:"=", className:"equals" },
+          { type:"field", id:"cmpAddWhole" },
+        ],
+      })];
+  } else if (type === "PICTURE_FAMILY"){
+    operation = "structure";
+    visual = true;
+    visualModel = "putTogetherDots";
+    activityLabel = "PUT TOGETHER";
     prompt = scaffoldLevel >= 4
       ? "Use the picture to write an addition and a matching subtraction."
       : "Use the picture to count the parts, find the whole, and write the matching equations.";
@@ -1666,10 +1925,11 @@ function generateFactFamilyProblem(typeOverride, options){
   }
 
   const primary = fields[0] || makeField("meta", "", fam.whole, "", fact, operation);
+  const primaryOpen = fields.find(field => !field.locked) || primary;
   const canonical = isPictureFamilyType(type)
     ? `${fam.a}+${fam.b}=${fam.whole};${fam.whole}-${fam.a}=${fam.b}`
     : constructRows
-    ? constructRows.map(row => `${row.expected[0]}-${row.expected[1]}=${row.expected[2]}`).join(";")
+    ? constructRows.map(constructRowCanonical).join(";")
     : choiceOptions
       ? (choiceOptions.find(o => o.isCorrect)?.text || "")
       : equationText(primary).replace(/\s/g, "");
@@ -1680,7 +1940,7 @@ function generateFactFamilyProblem(typeOverride, options){
     problemType: type,
     factFamilyId: fam.id,
     a: fam.a, b: fam.b, whole: fam.whole,
-    fact: primary.fact,
+    fact: primaryOpen.fact,
     factCanonical: canonical.replace(/\s/g, ""),
     operation,
     knownPart: type === "ADD" ? null : (type === "SUB2" ? fam.b : fam.a),
@@ -1688,10 +1948,13 @@ function generateFactFamilyProblem(typeOverride, options){
     story,
     problemText: prompt,
     plannedType: options.plannedType || type,
-    skill: primary.skill || null,
-    representation: primary.representation || (visual ? "picture" : "equation"),
+    skill: primaryOpen.skill || null,
+    representation: primaryOpen.representation || (visual ? "picture" : "equation"),
+    activityLabel,
     givenEquation,
     visual,
+    visualModel,
+    compare,
     fields,
     constructRows,
     pictureStages,
@@ -1699,7 +1962,7 @@ function generateFactFamilyProblem(typeOverride, options){
     numberTiles,
     choiceOptions,
     scaffoldLevel,
-    correctAnswer: primary.expected,
+    correctAnswer: primaryOpen.expected,
     range: clamp(cfg.numberRange.max, 5, 20),
     configId: cfg.configId || null,
     focusId: focus.id,
@@ -1734,7 +1997,7 @@ function selectSessionAnchorFamily(focus){
   const preferred = (focus && focus.targetFamilies || [])
     .map(id => familyFromId(id))
     .find(fam => fam && fam.whole <= state.config.numberRange.max && fam.a !== fam.b);
-  return preferred || selectWeightedFamily(pool, "PICTURE_FAMILY", state.config, focus || null);
+  return preferred || selectWeightedFamily(pool, "COMPARE_COMPANION", state.config, focus || null);
 }
 
 function recentMissRecord(){
@@ -1749,7 +2012,7 @@ function resolveReviewPlan(){
   const miss = recentMissRecord();
   if (miss){
     const signal = (miss.deficitSignals || [])[0];
-    const focusId = signal && signal.id ? signal.id : (miss.focusId || "pictureToEquation");
+    const focusId = signal && signal.id ? signal.id : (miss.focusId || "companionSubtraction");
     return {
       type: (typesForFocus(focusId)[0] || "PICTURE_FAMILY"),
       familyId: miss.factFamilyId || null,
@@ -1757,15 +2020,27 @@ function resolveReviewPlan(){
   }
   const focus = derivePracticeFocus();
   return {
-    type: (typesForFocus(focus.id)[0] || "PICTURE_FAMILY"),
+    type: "NOT_FAMILY",
     familyId: (focus.targetFamilies || [])[0] || (state.session && state.session.anchorFamilyId) || null,
   };
 }
 
 function scaffoldForPlannedProblem(type){
-  if (type !== "PICTURE_FAMILY" || !state.session || !state.session.typePlan) return null;
+  if (!state.session || !state.session.typePlan) return null;
   const plan = state.session.typePlan;
   const index = state.session.index;
+  if (type === "COMPARE_COMPANION"){
+    const compareIndexes = plan
+      .map((t, i) => t === "COMPARE_COMPANION" ? i : -1)
+      .filter(i => i >= 0);
+    const occurrence = compareIndexes.indexOf(index);
+    const base = deriveSkillScaffoldLevel("companionSubtraction");
+    return Math.max(1, Math.min(4, base + Math.max(0, occurrence)));
+  }
+  if (type === "COMPARE_ADD"){
+    return Math.max(1, Math.min(3, deriveSkillScaffoldLevel("matchingAddition")));
+  }
+  if (type !== "PICTURE_FAMILY") return null;
   const pictureIndexes = plan
     .map((t, i) => t === "PICTURE_FAMILY" ? i : -1)
     .filter(i => i >= 0);
@@ -1874,6 +2149,17 @@ function rememberFirstResults(results){
     .map(field => v.firstResultById[field.id])
     .filter(Boolean)
     .map(result => Object.assign({}, result));
+}
+
+function fillConstructAnswer(p){
+  const answers = Object.assign({}, state.view.answers);
+  for (const field of p.fields){
+    answers[field.id] = String(field.expected);
+  }
+  const results = p.fields.map(field => resultForField(field, answers[field.id]));
+  applyConstructRowGrades(p, results);
+  state.view.answers = answers;
+  state.view.fieldResults = Object.fromEntries(results.map(r => [r.id, r]));
 }
 
 function checkPictureFamily(){
@@ -2014,10 +2300,40 @@ function checkFactFamily(){
 
   if (allCorrect){
     v.solved = true;
-    v.feedback = { kind: "correct", text: isStructuralType(p.problemType) ? "Yes. The whole stayed first and the parts switched." : pickPraise() };
+    const correctText = p.problemType === "COMPARE_ADD"
+      ? "Yes. That addition matches the subtraction."
+      : isCompareType(p.problemType)
+        ? "Yes. The first number stayed the same and the other two switched."
+        : isStructuralType(p.problemType)
+          ? "Yes. The whole stayed first and the parts switched."
+          : pickPraise();
+    v.feedback = { kind: "correct", text: correctText };
     speak(isStructuralType(p.problemType) ? v.feedback.text : `${v.feedback.text} These equations match.`);
   } else {
     const structuralErrors = structuralErrorsForProblem(p, results);
+    if (isCompareType(p.problemType)){
+      v.hintUsed = true;
+      if (v.attempts === 1){
+        v.hintSequence.push("firstNumberStays");
+        v.feedback = { kind: "wrong", text: `The first number stays the same.` };
+      } else if (v.attempts === 2){
+        const info = compareInfo(p);
+        v.hintSequence.push("switchOtherNumbers");
+        v.feedback = { kind: "wrong", text: `Switch the ${info.givenSub} and the ${info.givenAnswer}.` };
+      } else {
+        const info = compareInfo(p);
+        v.modeledAnswer = true;
+        v.solved = true;
+        v.hintSequence.push("modeledRelationship");
+        fillConstructAnswer(p);
+        v.feedback = p.problemType === "COMPARE_ADD"
+          ? { kind: "wrong", text: `Let's model this one: ${info.givenSub} + ${info.givenAnswer} = ${info.start}. Try a new one next.` }
+          : { kind: "wrong", text: `Let's model this one: ${info.start} − ${info.givenAnswer} = ${info.givenSub}. Try a new one next.` };
+      }
+      speak(v.feedback.text);
+      render();
+      return;
+    }
     v.feedback = { kind: "wrong", text: structuralFeedback(p, structuralErrors) };
     speak(v.feedback.text);
     if (state.config.hintBehavior.autoHintAfterWrong &&
@@ -2031,6 +2347,22 @@ function checkFactFamily(){
 function pickPraise(){ return ["Great job!","You got it!","Nice work!","Brilliant!","Way to go!"][rand(0,4)]; }
 function encourage(){ return `Check each equation. The same three numbers should match.`; }
 function structuralFeedback(p, codes){
+  if (isCompareType(p.problemType) && codes.includes("ADDED_ALL_VISIBLE_DOTS")){
+    return `This is a compare problem. Do not add all the visible dots together.`;
+  }
+  if (isCompareType(p.problemType) && codes.includes("FIRST_NUMBER_CHANGED")){
+    return `The first number stays the same.`;
+  }
+  if (isCompareType(p.problemType) && codes.includes("OTHER_NUMBERS_NOT_SWITCHED")){
+    const info = compareInfo(p);
+    return `Switch the ${info.givenSub} and the ${info.givenAnswer}.`;
+  }
+  if (isCompareType(p.problemType) && codes.includes("MATCHING_ADDITION_ERROR")){
+    return `Use the two smaller numbers to make the first number.`;
+  }
+  if (isCompareType(p.problemType) && codes.includes("TRUE_BUT_NOT_MATCHING")){
+    return `That equation is true, but it does not match the given subtraction.`;
+  }
   if (isPictureFamilyType(p.problemType) && codes.includes("PICTURE_PART_COUNT_ERROR")){
     return `Count one colored part at a time. The two parts make one whole.`;
   }
@@ -2067,7 +2399,14 @@ function structuralFeedback(p, codes){
 function showHint(){
   state.view.hintUsed = true;
   const p = state.problem;
-  const msg = isPictureFamilyType(p.problemType)
+  const msg = isCompareType(p.problemType)
+    ? (() => {
+        const info = compareInfo(p);
+        return p.problemType === "COMPARE_ADD"
+          ? `This is compare. The first number is ${info.start}. Use the other two numbers, ${info.givenSub} and ${info.givenAnswer}, to make ${info.start}.`
+          : `The first number stays the same: ${info.start}. Switch the ${info.givenSub} and the ${info.givenAnswer}.`;
+      })()
+    : isPictureFamilyType(p.problemType)
     ? `Two parts make one whole. Addition joins ${p.a} and ${p.b} to make ${p.whole}. Subtraction starts with the whole, ${p.whole}, and finds one part.`
     : `${p.a}, ${p.b}, and ${p.whole} belong together. ${p.whole} is the whole, so subtraction starts with ${p.whole}. The parts, ${p.a} and ${p.b}, switch places.`;
   speak(msg);
@@ -2286,21 +2625,63 @@ function renderHome(){
 }
 
 /* ---------- PLAY ---------- */
+function renderDot(cls, color){
+  const dot = el("span", "dot " + cls);
+  if (color) dot.style.background = `var(--${color})`;
+  return dot;
+}
+
+function renderComparisonModel(p){
+  const info = compareInfo(p);
+  const colorA = p.story && p.story.colA;
+  const colorB = p.story && p.story.colB;
+  if (!info.aligned){
+    const model = el("div", "compare-model loose");
+    const topGroup = el("div", "compare-group");
+    topGroup.appendChild(el("div", "compare-group-label", `${info.start}`));
+    for (let i = 0; i < info.start; i++) topGroup.appendChild(renderDot("a", colorA));
+    const bottomGroup = el("div", "compare-group");
+    bottomGroup.appendChild(el("div", "compare-group-label", `${info.givenSub}`));
+    for (let i = 0; i < info.givenSub; i++) bottomGroup.appendChild(renderDot("b", colorB));
+    model.appendChild(topGroup);
+    model.appendChild(bottomGroup);
+    model.appendChild(el("div", "compare-caption", `${info.start} − ${info.givenSub} = ${info.givenAnswer}`));
+    return model;
+  }
+
+  const model = el("div", "compare-model aligned");
+  const top = el("div", "compare-row");
+  top.appendChild(el("div", "compare-row-label", `${info.start}`));
+  for (let i = 0; i < info.start; i++){
+    const cell = el("div", "compare-cell" + (i >= info.givenSub ? " extra" : ""));
+    cell.appendChild(renderDot("a", colorA));
+    top.appendChild(cell);
+  }
+  const bottom = el("div", "compare-row");
+  bottom.appendChild(el("div", "compare-row-label", `${info.givenSub}`));
+  for (let i = 0; i < info.start; i++){
+    const cell = el("div", "compare-cell" + (i >= info.givenSub ? " empty" : ""));
+    if (i < info.givenSub) cell.appendChild(renderDot("b", colorB));
+    bottom.appendChild(cell);
+  }
+  model.appendChild(top);
+  model.appendChild(bottom);
+  model.appendChild(el("div", "compare-caption", `${info.givenAnswer} unmatched`));
+  return model;
+}
+
 function renderPictureModel(p){
+  if (p.visualModel === "comparisonDots") return renderComparisonModel(p);
   const showLabels = p.pictureLabels || Boolean(state.view && state.view.forcePictureLabels);
   const model = el("div", "picture-model" + (showLabels ? " whole-frame" : ""));
   if (!p.visual) return model;
   const groupA = el("div", "picture-group" + (showLabels ? " labeled" : ""));
   const groupB = el("div", "picture-group" + (showLabels ? " labeled" : ""));
   for (let i = 0; i < p.a; i++){
-    const dot = el("span", "dot a");
-    if (p.story && p.story.colA) dot.style.background = `var(--${p.story.colA})`;
-    groupA.appendChild(dot);
+    groupA.appendChild(renderDot("a", p.story && p.story.colA));
   }
   for (let i = 0; i < p.b; i++){
-    const dot = el("span", "dot b");
-    if (p.story && p.story.colB) dot.style.background = `var(--${p.story.colB})`;
-    groupB.appendChild(dot);
+    groupB.appendChild(renderDot("b", p.story && p.story.colB));
   }
   model.appendChild(groupA);
   model.appendChild(groupB);
@@ -2446,6 +2827,10 @@ function renderPlay(){
   card.appendChild(dots);
 
   // story / prompt
+  if (p.activityLabel){
+    const activityClass = p.activityLabel === "COMPARE" ? " compare" : " put-together";
+    card.appendChild(el("div", "activity-label" + activityClass, p.activityLabel));
+  }
   const story = el("div", "story");
   story.textContent = isPictureFamilyType(p.problemType)
     ? pictureStagePrompt(p, v.pictureStageIndex || 0)
@@ -2492,7 +2877,14 @@ function renderPlay(){
   // hint detail
   if (v.hintUsed && !v.solved){
     const h = el("div", "banner wrong");
-    h.textContent = isPictureFamilyType(p.problemType)
+    h.textContent = isCompareType(p.problemType)
+      ? (() => {
+          const info = compareInfo(p);
+          return p.problemType === "COMPARE_ADD"
+            ? `COMPARE: use ${info.givenSub} and ${info.givenAnswer} to make ${info.start}.`
+            : `COMPARE: keep ${info.start} first, then switch ${info.givenSub} and ${info.givenAnswer}.`;
+        })()
+      : isPictureFamilyType(p.problemType)
       ? `Two parts make one whole. ${p.a} + ${p.b} = ${p.whole}. Subtraction starts with the whole: ${p.whole} − one part = the other part.`
       : `${p.a} + ${p.b} = ${p.whole}, so ${p.whole} − ${p.a} = ${p.b} and ${p.whole} − ${p.b} = ${p.a}.`;
     card.appendChild(h);
@@ -2524,6 +2916,20 @@ function renderConnection(p){
 
 function renderSwitchExplanation(p){
   const box = el("div", "switch-explain");
+  if (isCompareType(p.problemType)){
+    const info = compareInfo(p);
+    box.appendChild(el("div", null, p.problemType === "COMPARE_ADD"
+      ? "The two smaller numbers make the first number."
+      : "The first number stays the same. The other two numbers switch."));
+    const line = el("div", "line");
+    line.innerHTML = p.problemType === "COMPARE_ADD"
+      ? `<span class="whole">${info.start}</span> − <span class="part">${info.givenSub}</span> = <span class="part">${info.givenAnswer}</span>`
+        + ` &nbsp; so &nbsp; <span class="part">${info.givenSub}</span> + <span class="part">${info.givenAnswer}</span> = <span class="whole">${info.start}</span>`
+      : `<span class="whole">${info.start}</span> − <span class="part">${info.givenSub}</span> = <span class="part">${info.givenAnswer}</span>`
+        + ` &nbsp; so &nbsp; <span class="whole">${info.start}</span> − <span class="part">${info.givenAnswer}</span> = <span class="part">${info.givenSub}</span>`;
+    box.appendChild(line);
+    return box;
+  }
   box.appendChild(el("div", null, "The whole stays first. The parts switch places."));
   const line = el("div", "line");
   line.innerHTML = `<span class="whole">${p.whole}</span> − <span class="part">${p.a}</span> = <span class="part">${p.b}</span>`
@@ -2838,40 +3244,54 @@ ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=
 The DATA below is JSON exported from his practice app.
 
 The app's local scheduler is sequenced, not a random pile of drills. A normal six-item session
-threads one family through picture -> addition-to-subtraction -> companion subtraction ->
-family discrimination -> spaced review, with local adaptation between sessions.
+centers the hard transformation: given a subtraction a - b = c, write the companion
+subtraction a - c = b. It starts with comparison-dot pictures, then asks for a matching
+addition once, then checks symbolic subtraction-only transfer, then review.
 
-Each problem record has: problemType (PICTURE_FAMILY | COMPANION | ADD_TO_SUB | NOT_FAMILY |
-WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT), plannedType (which may be SPACED_REVIEW before it
-resolved), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"), operation, skill, representation,
-correctAnswer, childAnswer, errorValue (for arithmetic-answer problems), answers[] (one row
-per equation blank or choice, with its own skill/representation/errorCode), structuralErrorCodes[],
-arithmeticCorrect, familyCorrect, scaffoldLevel, attempts, correctFirstTry, hintUsed, hintSequence,
-modeledAnswer, morphViewed, timeSpentMs, focusId/focusReason (why the app chose that practice),
-and deficitSignals[] (what kind of miss it saw). The export also includes deficitProfile with
-factStats, familyStats, skillStats, and representationStats.
+Representations matter. PICTURE_FAMILY / putTogetherDots means "how many in all?" where all
+visible dots form the whole. COMPARE_COMPANION and COMPARE_ADD / comparisonDots mean "how many
+more?" where the first number in the subtraction stays fixed and the other two numbers switch.
+Do not interpret comparison-dot mistakes as ordinary addition-first picture-family mistakes.
+
+Each problem record has: problemType (COMPARE_COMPANION | COMPARE_ADD | PICTURE_FAMILY |
+COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT), plannedType
+(which may be SPACED_REVIEW before it resolved), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"),
+operation, skill, representation, correctAnswer, childAnswer, errorValue (for arithmetic-answer
+problems), answers[] (one row per equation blank or choice, with its own
+skill/representation/errorCode), structuralErrorCodes[], arithmeticCorrect, familyCorrect,
+scaffoldLevel, attempts, correctFirstTry, hintUsed, hintSequence, modeledAnswer, morphViewed,
+timeSpentMs, focusId/focusReason (why the app chose that practice), and deficitSignals[] (what
+kind of miss it saw). The export also includes deficitProfile with factStats, familyStats,
+skillStats, and representationStats.
 
 Please find:
 1. Which specific FACTS and FACT FAMILIES are weak (low correctFirstTry, many attempts, repeated
    errorValue patterns such as off-by-one (+/-1) or reversals).
-2. What KIND of weakness is showing up: addition fact recall, subtraction fact recall,
-   addition->subtraction transfer, subtraction->addition transfer, picture->equation mapping,
-   or whole-first structure.
-3. For PICTURE_FAMILY records, separate counting parts, finding the whole, writing the addition,
+2. What KIND of weakness is showing up: companion subtraction (a-b=c -> a-c=b), comparison
+   picture interpretation, matching addition from a subtraction, addition fact recall,
+   subtraction fact recall, addition->subtraction transfer, subtraction->addition transfer,
+   put-together picture->equation mapping, or whole-first structure.
+3. For COMPARE_COMPANION records, check whether he kept the first number, switched the other
+   two numbers, avoided adding all visible dots, and improved as scaffolds faded.
+4. For COMPARE_ADD records, check whether he wrote b+c=a or c+b=a from the given subtraction.
+5. For PICTURE_FAMILY records, separate counting parts, finding the whole, writing the addition,
    starting subtraction with the whole, and completing the subtraction.
-4. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
+6. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
    where the equation may be arithmetically true but does not belong to the displayed family.
-5. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+7. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
    answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
-6. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
-   Treat ARITHMETIC_ERROR as subtraction recall, and DUPLICATE_SUBTRACTION or PARTS_NOT_SWITCHED
-   as add-to-subtract transfer/structure. Treat PICTURE_PART_COUNT_ERROR,
-   PICTURE_WHOLE_COUNT_ERROR, and PICTURE_ADDITION_ARITHMETIC_ERROR as picture-to-equation evidence.
-7. Skill-level evidence from answers[].skill and deficitProfile.skillStats: countFirstGroup,
+8. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
+   Treat FIRST_NUMBER_CHANGED, OTHER_NUMBERS_NOT_SWITCHED, TRUE_BUT_NOT_MATCHING, and
+   ADDED_ALL_VISIBLE_DOTS as core comparison/companion-subtraction evidence. Treat
+   MATCHING_ADDITION_ERROR as subtraction-to-addition transfer evidence. Treat ARITHMETIC_ERROR
+   as subtraction recall, and DUPLICATE_SUBTRACTION or PARTS_NOT_SWITCHED as add-to-subtract
+   transfer/structure. Treat PICTURE_PART_COUNT_ERROR, PICTURE_WHOLE_COUNT_ERROR, and
+   PICTURE_ADDITION_ARITHMETIC_ERROR as put-together picture-to-equation evidence.
+9. Skill-level evidence from answers[].skill and deficitProfile.skillStats: countFirstGroup,
    countSecondGroup, identifyWhole, pictureToAddition, pictureToSubtraction, wholeFirst,
-   additionToSubtraction, companionSubtraction, familyDiscrimination, additionRecall,
-   subtractionRecall, and subtractionToAddition.
-8. A recommended next focus (2-4 families or facts), with brief reasoning.
+   additionToSubtraction, companionSubtraction, matchingAddition, familyDiscrimination,
+   additionRecall, subtractionRecall, and subtractionToAddition.
+10. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
 PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
@@ -2948,13 +3368,13 @@ function runSelfTests(){
   const defaultPlan = buildSessionTypePlan(DEFAULT_CONFIG);
   const planCounts = Object.fromEntries(PROBLEM_TYPES.map(t => [t, defaultPlan.filter(x => x === t).length]));
   ok(defaultPlan.length === 6 &&
-    defaultPlan[0] === "PICTURE_FAMILY" &&
-    defaultPlan[1] === "PICTURE_FAMILY" &&
-    planCounts.ADD_TO_SUB === 1 &&
+    defaultPlan[0] === "COMPARE_COMPANION" &&
+    defaultPlan[1] === "COMPARE_COMPANION" &&
+    defaultPlan[2] === "COMPARE_COMPANION" &&
+    planCounts.COMPARE_ADD === 1 &&
     planCounts.COMPANION === 1 &&
-    planCounts.NOT_FAMILY === 1 &&
     defaultPlan[5] === REVIEW_SLOT,
-    "default session plan is ordered picture, picture, add-to-sub, companion, not-family, review");
+    "default session plan is ordered compare companion, compare addition, symbolic companion, review");
   const longPlan = buildSessionTypePlan(Object.assign({}, DEFAULT_CONFIG, { sessionLength: 9 }));
   ok(longPlan.length === 9 && longPlan.every(Boolean) && longPlan.filter(x => x === REVIEW_SLOT).length >= 2,
     "extended default session plan remains explicit and ordered");
@@ -2975,6 +3395,25 @@ function runSelfTests(){
             (row.skill === "pictureCount" ||
               (row.skill === "pictureAddition" && row.expected[0] + row.expected[1] === row.expected[2] && row.expected[2] === p.whole) ||
               (row.skill === "pictureSubtraction" && row.expected[0] === p.whole && row.expected[0] - row.expected[1] === row.expected[2]))) &&
+          structureFieldsGood;
+      } else if (p.problemType === "COMPARE_COMPANION"){
+        const info = compareInfo(p);
+        shapeGood = p.visual && p.visualModel === "comparisonDots" && p.representation === "comparisonDots" &&
+          p.givenEquation === `${info.start} − ${info.givenSub} = ${info.givenAnswer}` &&
+          p.constructRows && p.constructRows.length === 1 &&
+          p.constructRows[0].expected[0] === info.start &&
+          p.constructRows[0].expected[1] === info.givenAnswer &&
+          p.constructRows[0].expected[2] === info.givenSub &&
+          p.constructRows[0].skill === "compareCompanion" &&
+          structureFieldsGood;
+      } else if (p.problemType === "COMPARE_ADD"){
+        const info = compareInfo(p);
+        shapeGood = p.visual && p.visualModel === "comparisonDots" && p.representation === "comparisonDots" &&
+          p.constructRows && p.constructRows.length === 1 &&
+          p.constructRows[0].operation === "addition" &&
+          p.constructRows[0].expected[0] + p.constructRows[0].expected[1] === info.start &&
+          p.constructRows[0].expected[2] === info.start &&
+          p.constructRows[0].skill === "compareAddition" &&
           structureFieldsGood;
       } else if (p.constructRows){
         shapeGood = p.constructRows.every(row => row.expected[0] === p.whole &&
@@ -3025,10 +3464,23 @@ function runSelfTests(){
   const structuralSignals = classifyDeficitSignals(structuralMiss).map(s => s.id);
   ok(structuralSignals.includes("wholeFirst"), "part-minus-part routes to whole-first focus");
 
+  const defaultFocus = derivePracticeFocus([]);
+  ok(defaultFocus.id === "companionSubtraction", "default focus starts with subtraction companion transfer");
+
+  const generatedCompare = generateFactFamilyProblem("COMPARE_COMPANION", { scaffoldLevel: 1, familyOverride: "1+4=5" });
+  ok(generatedCompare.problemType === "COMPARE_COMPANION" &&
+    generatedCompare.visualModel === "comparisonDots" &&
+    generatedCompare.givenEquation === "5 − 4 = 1" &&
+    generatedCompare.correctAnswer === 1 &&
+    generatedCompare.constructRows[0].expected.join("-") === "5-1-4" &&
+    generatedCompare.fields.some(f => f.locked && f.id === "cmpWhole" && f.expected === 5) &&
+    generatedCompare.fields.some(f => f.skill === "companionSubtraction" && f.representation === "comparisonDots"),
+    "COMPARE_COMPANION starts from given subtraction and logs the first open answer");
+
   const generatedPicture = generateFactFamilyProblem("PICTURE_FAMILY", { scaffoldLevel: 1, familyOverride: "3+4=7" });
-  ok(generatedPicture.fields.some(f => f.skill === "countFirstGroup" && f.representation === "picture") &&
-    generatedPicture.fields.some(f => f.skill === "pictureToAddition" && f.representation === "picture") &&
-    generatedPicture.fields.some(f => f.skill === "pictureToSubtraction" && f.representation === "picture"),
+  ok(generatedPicture.fields.some(f => f.skill === "countFirstGroup" && f.representation === "putTogetherDots") &&
+    generatedPicture.fields.some(f => f.skill === "pictureToAddition" && f.representation === "putTogetherDots") &&
+    generatedPicture.fields.some(f => f.skill === "pictureToSubtraction" && f.representation === "putTogetherDots"),
     "PICTURE_FAMILY fields expose separate skill and representation metadata");
 
   const pictureBase = {
@@ -3126,6 +3578,103 @@ function runSelfTests(){
   ok(arithmeticErrors.includes("ARITHMETIC_ERROR"), "wrong subtraction with the right whole and parts is an arithmetic error");
   ok(!arithmeticErrors.includes("PARTS_NOT_SWITCHED") && !arithmeticErrors.includes("WRONG_PART_POSITION"),
     "arithmetic errors are not misclassified as part-switching errors");
+
+  const compareProblem = {
+    problemType: "COMPARE_COMPANION",
+    a: 1,
+    b: 4,
+    whole: 5,
+    compare: { start: 5, givenSub: 4, givenAnswer: 1, totalVisible: 9, aligned: true },
+    constructRows: [
+      { fieldIds: ["cw", "cs", "cd"], expected: [5, 1, 4], skill: "compareCompanion" },
+    ],
+  };
+  const compareCorrectRows = [
+    { id: "cw", submitted: 5 }, { id: "cs", submitted: 1 }, { id: "cd", submitted: 4 },
+  ];
+  applyConstructRowGrades(compareProblem, compareCorrectRows);
+  ok(compareCorrectRows.every(r => r.isCorrect), "COMPARE_COMPANION accepts switched subtraction");
+  ok(structuralErrorsForProblem(compareProblem, [
+    { id: "cw", submitted: 5 }, { id: "cs", submitted: 4 }, { id: "cd", submitted: 1 },
+  ]).includes("OTHER_NUMBERS_NOT_SWITCHED"), "COMPARE_COMPANION flags copied given subtraction");
+  ok(structuralErrorsForProblem(compareProblem, [
+    { id: "cw", submitted: 4 }, { id: "cs", submitted: 1 }, { id: "cd", submitted: 3 },
+  ]).includes("FIRST_NUMBER_CHANGED"), "COMPARE_COMPANION flags changed first number");
+  ok(structuralErrorsForProblem(compareProblem, [
+    { id: "cw", submitted: 9 }, { id: "cs", submitted: 5 }, { id: "cd", submitted: 4 },
+  ]).includes("ADDED_ALL_VISIBLE_DOTS"), "COMPARE_COMPANION flags put-together interpretation of compare dots");
+  ok(structuralErrorsForProblem(compareProblem, [
+    { id: "cw", submitted: 5 }, { id: "cs", submitted: 2 }, { id: "cd", submitted: 3 },
+  ]).includes("TRUE_BUT_NOT_MATCHING"), "COMPARE_COMPANION flags true but nonmatching equation");
+
+  const compareAddProblem = {
+    problemType: "COMPARE_ADD",
+    a: 1,
+    b: 4,
+    whole: 5,
+    compare: { start: 5, givenSub: 4, givenAnswer: 1, totalVisible: 9, aligned: true },
+    constructRows: [
+      { fieldIds: ["al", "ar", "aw"], expected: [4, 1, 5], skill: "compareAddition", operation: "addition" },
+    ],
+  };
+  const reversedCompareAdd = [
+    { id: "al", submitted: 1 }, { id: "ar", submitted: 4 }, { id: "aw", submitted: 5 },
+  ];
+  applyConstructRowGrades(compareAddProblem, reversedCompareAdd);
+  ok(reversedCompareAdd.every(r => r.isCorrect), "COMPARE_ADD accepts either addend order");
+  ok(structuralErrorsForProblem(compareAddProblem, [
+    { id: "al", submitted: 5 }, { id: "ar", submitted: 4 }, { id: "aw", submitted: 9 },
+  ]).includes("ADDED_ALL_VISIBLE_DOTS"), "COMPARE_ADD flags adding all visible dots");
+  ok(structuralErrorsForProblem(compareAddProblem, [
+    { id: "al", submitted: 4 }, { id: "ar", submitted: 1 }, { id: "aw", submitted: 6 },
+  ]).includes("MATCHING_ADDITION_ERROR"), "COMPARE_ADD flags wrong matching addition");
+
+  const savedProblemForCompare = state.problem;
+  const savedViewForCompare = state.view;
+  const savedScreenForCompare = state.screen;
+  const savedQuerySelectorForCompare = document.querySelector;
+  const compareFlowProblem = generateFactFamilyProblem("COMPARE_COMPANION", { scaffoldLevel: 1, familyOverride: "1+4=5" });
+  const compareAnswers = { cmpSub: "4", cmpAnswer: "1" };
+  document.querySelector = (selector) => {
+    const m = String(selector).match(/data-answer-id="([^"]+)"/);
+    return { value: m ? (compareAnswers[m[1]] || "") : "" };
+  };
+  state.problem = compareFlowProblem;
+  state.screen = "home";
+  state.view = {
+    answers: {},
+    attempts: 0,
+    firstAnswer: null,
+    firstAnswers: null,
+    firstResultById: {},
+    firstFieldResults: null,
+    fieldResults: {},
+    pictureStageIndex: 0,
+    pictureStageAttempts: {},
+    forcePictureLabels: false,
+    modeledAnswer: false,
+    hintSequence: [],
+    selectedChoice: null,
+    hintUsed: false,
+    morphViewed: false,
+    showMorph: false,
+    solved: false,
+    feedback: null,
+    startedAt: Date.now(),
+  };
+  checkFactFamily();
+  checkFactFamily();
+  checkFactFamily();
+  ok(state.view.solved && state.view.modeledAnswer &&
+    state.view.hintSequence.join("|") === "firstNumberStays|switchOtherNumbers|modeledRelationship" &&
+    state.view.firstFieldResults.some(r => r.id === "cmpWhole" && r.submitted === 5 && r.isCorrect && !r.errorCode) &&
+    state.view.firstFieldResults.some(r => r.id === "cmpSub" && r.submitted === 4 && !r.isCorrect) &&
+    state.view.fieldResults.cmpSub.isCorrect && state.view.fieldResults.cmpAnswer.isCorrect,
+    "COMPARE_COMPANION correction hints progress before modeled answer and preserve first response");
+  document.querySelector = savedQuerySelectorForCompare;
+  state.problem = savedProblemForCompare;
+  state.view = savedViewForCompare;
+  state.screen = savedScreenForCompare;
 
   const savedProblemForPictureStages = state.problem;
   const savedViewForPictureStages = state.view;
