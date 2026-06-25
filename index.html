@@ -130,6 +130,8 @@ button:disabled{cursor:default}
   font:700 clamp(24px,5.4vw,34px)/1 Arial,"Helvetica Neue",Helvetica,sans-serif;
   color:#061b35;text-align:center;box-shadow:inset 0 1px 2px rgba(15,35,63,0.08)}
 .blank:focus{outline:3px solid #84c5ff;border-color:var(--blue)}
+.blank.selected{outline:4px solid #c4b5fd;border-color:#7c3aed;background:#f5f3ff}
+.blank[readonly]{caret-color:transparent}
 .blank.right{border-color:var(--green);background:#ecfdf5}
 .blank.wrong{border-color:var(--red);background:#fef2f2}
 .known{min-width:42px;text-align:center}
@@ -143,6 +145,12 @@ button:disabled{cursor:default}
 .tile .num{font-size:clamp(24px,5vw,34px);line-height:1}
 .tile .tag{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);margin-top:4px}
 .tile.whole{border-color:#fbbf24;background:#fffbeb}
+.keypad{display:grid;grid-template-columns:repeat(3,64px);gap:8px;justify-content:center;margin:0 auto 18px;
+  padding:10px;border:1px solid #dbe4ef;border-radius:8px;background:#f8fafc;max-width:240px}
+.keypad button{height:50px;border:2px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink);
+  font-size:24px;font-weight:900;box-shadow:0 2px 0 rgba(15,35,63,.12)}
+.keypad button:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(15,35,63,.12)}
+.keypad button.tool{font-size:19px;color:#5b21b6;background:#f5f3ff;border-color:#ddd6fe}
 .choice-grid{display:grid;gap:10px;margin:0 auto 20px;max-width:520px}
 .choice-btn{border:2px solid #d8e2ee;background:#fff;border-radius:8px;padding:14px;
   font-size:clamp(23px,5vw,34px);font-weight:800;color:#061b35}
@@ -239,7 +247,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.4.2";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -2095,6 +2103,7 @@ function beginNextProblem(){
     firstResultById: {},
     firstFieldResults: null,
     fieldResults: {},
+    activeAnswerId: null,
     pictureStageIndex: 0,
     pictureStageAttempts: {},
     forcePictureLabels: false,
@@ -2132,6 +2141,77 @@ function resultForField(field, raw){
     tracksMastery: field.tracksMastery !== false,
     locked: Boolean(field.locked),
   };
+}
+
+function visibleAnswerFields(p){
+  if (!p || p.choiceOptions || state.view.solved) return [];
+  let fields = (p.fields || []).filter(field => !field.locked);
+  if (isPictureFamilyType(p.problemType)){
+    const stageIds = new Set(pictureFieldIdsForStage(p, state.view.pictureStageIndex || 0));
+    fields = fields.filter(field => stageIds.has(field.id));
+  }
+  return fields;
+}
+
+function ensureActiveAnswerId(p){
+  const fields = visibleAnswerFields(p);
+  if (!fields.length){
+    state.view.activeAnswerId = null;
+    return null;
+  }
+  if (!fields.some(field => field.id === state.view.activeAnswerId)){
+    state.view.activeAnswerId = fields[0].id;
+  }
+  return state.view.activeAnswerId;
+}
+
+function selectAnswerField(id){
+  if (state.view.solved) return;
+  state.view.activeAnswerId = id;
+  render();
+}
+
+function activeAnswerField(p){
+  const id = ensureActiveAnswerId(p);
+  return visibleAnswerFields(p).find(field => field.id === id) || null;
+}
+
+function clearCurrentAnswerFeedback(){
+  state.view.fieldResults = {};
+  if (state.view.feedback && state.view.feedback.kind === "wrong") state.view.feedback = null;
+}
+
+function setActiveAnswerValue(value){
+  const field = activeAnswerField(state.problem);
+  if (!field) return;
+  state.view.answers[field.id] = String(value).replace(/\D/g, "").slice(0, 2);
+  clearCurrentAnswerFeedback();
+  render();
+}
+
+function enterKeypadDigit(digit){
+  const field = activeAnswerField(state.problem);
+  if (!field) return;
+  const cleanDigit = String(digit).replace(/\D/g, "").slice(0, 1);
+  if (!cleanDigit) return;
+  const current = String(state.view.answers[field.id] || "").replace(/\D/g, "");
+  const next = (current === "0" ? cleanDigit : current + cleanDigit).slice(0, 2);
+  state.view.answers[field.id] = next;
+  clearCurrentAnswerFeedback();
+  render();
+}
+
+function backspaceActiveAnswer(){
+  const field = activeAnswerField(state.problem);
+  if (!field) return;
+  const current = String(state.view.answers[field.id] || "");
+  state.view.answers[field.id] = current.slice(0, -1);
+  clearCurrentAnswerFeedback();
+  render();
+}
+
+function clearActiveAnswer(){
+  setActiveAnswerValue("");
 }
 
 function rememberFirstResults(results){
@@ -2696,8 +2776,11 @@ function renderEquationField(field){
   appendEquationPart(row, field.before);
   const input = document.createElement("input");
   input.className = "blank";
-  input.type = "number";
+  input.type = "text";
   input.inputMode = "numeric";
+  input.pattern = "[0-9]*";
+  input.autocomplete = "off";
+  input.readOnly = true;
   input.min = "0";
   input.max = "20";
   input.dataset.answerId = field.id;
@@ -2705,8 +2788,11 @@ function renderEquationField(field){
   input.disabled = state.view.solved;
   input.setAttribute("aria-label", "missing number");
   const result = state.view.fieldResults[field.id];
+  if (state.view.activeAnswerId === field.id) input.classList.add("selected");
   if (result) input.classList.add(result.isCorrect ? "right" : "wrong");
   input.oninput = () => { state.view.answers[field.id] = input.value; };
+  input.onclick = () => selectAnswerField(field.id);
+  input.onfocus = () => { state.view.activeAnswerId = field.id; };
   row.appendChild(input);
   appendEquationPart(row, field.after);
   return row;
@@ -2723,11 +2809,36 @@ function renderNumberBank(p){
   return bank;
 }
 
+function renderKeypad(p){
+  if (state.view.solved || p.choiceOptions) return null;
+  if (!visibleAnswerFields(p).length) return null;
+  ensureActiveAnswerId(p);
+  const pad = el("div", "keypad");
+  const buttons = ["1","2","3","4","5","6","7","8","9","C","0","⌫"];
+  for (const label of buttons){
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = label === "C" || label === "⌫" ? "tool" : "";
+    btn.textContent = label;
+    btn.setAttribute("aria-label", label === "C" ? "clear" : label === "⌫" ? "backspace" : `number ${label}`);
+    btn.onclick = () => {
+      if (label === "C") clearActiveAnswer();
+      else if (label === "⌫") backspaceActiveAnswer();
+      else enterKeypadDigit(label);
+    };
+    pad.appendChild(btn);
+  }
+  return pad;
+}
+
 function renderConstructInput(field){
   const input = document.createElement("input");
   input.className = "blank";
-  input.type = "number";
+  input.type = "text";
   input.inputMode = "numeric";
+  input.pattern = "[0-9]*";
+  input.autocomplete = "off";
+  input.readOnly = true;
   input.min = "0";
   input.max = "20";
   input.dataset.answerId = field.id;
@@ -2735,8 +2846,11 @@ function renderConstructInput(field){
   input.disabled = state.view.solved;
   input.setAttribute("aria-label", field.role ? `missing ${field.role}` : "missing number");
   const result = state.view.fieldResults[field.id];
+  if (state.view.activeAnswerId === field.id) input.classList.add("selected");
   if (result) input.classList.add(result.isCorrect ? "right" : "wrong");
   input.oninput = () => { state.view.answers[field.id] = input.value; };
+  input.onclick = () => selectAnswerField(field.id);
+  input.onfocus = () => { state.view.activeAnswerId = field.id; };
   return input;
 }
 
@@ -2841,7 +2955,10 @@ function renderPlay(){
   card.appendChild(story);
 
   card.appendChild(renderPictureModel(p));
+  ensureActiveAnswerId(p);
   card.appendChild(renderEquationSet(p));
+  const keypad = renderKeypad(p);
+  if (keypad) card.appendChild(keypad);
 
   // feedback banner
   if (v.feedback){
@@ -2895,10 +3012,6 @@ function renderPlay(){
   }
 
   wrap.appendChild(card);
-  setTimeout(() => {
-    const firstBlank = document.querySelector("[data-answer-id]:not(:disabled)");
-    if (firstBlank) firstBlank.focus();
-  }, 0);
   return wrap;
 }
 
@@ -3354,6 +3467,19 @@ function confirmLeave(){
   return window.confirm("Leave this session?");
 }
 
+document.addEventListener("keydown", (event) => {
+  if (state.screen !== "play" || !state.problem || state.view.solved || state.problem.choiceOptions) return;
+  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+  if (tag === "textarea") return;
+  if (/^\d$/.test(event.key)){
+    event.preventDefault();
+    enterKeypadDigit(event.key);
+  } else if (event.key === "Backspace" || event.key === "Delete"){
+    event.preventDefault();
+    backspaceActiveAnswer();
+  }
+});
+
 /* =========================================================================
    14. SELF-TESTS  (run in console:  runSelfTests()  )
    ========================================================================= */
@@ -3486,6 +3612,35 @@ function runSelfTests(){
     generatedCompare.fields.some(f => f.locked && f.id === "cmpWhole" && f.expected === 5) &&
     generatedCompare.fields.some(f => f.skill === "companionSubtraction" && f.representation === "comparisonDots"),
     "COMPARE_COMPANION starts from given subtraction and logs the first open answer");
+
+  const savedProblemForKeypad = state.problem;
+  const savedViewForKeypad = state.view;
+  const savedScreenForKeypad = state.screen;
+  const savedSessionForKeypad = state.session;
+  state.problem = generatedCompare;
+  state.session = { index: 0, length: 2, results: [] };
+  state.screen = "play";
+  state.view = {
+    answers: {},
+    fieldResults: {},
+    activeAnswerId: null,
+    pictureStageIndex: 0,
+    solved: false,
+  };
+  const keypadText = treeText(renderKeypad(generatedCompare));
+  ok(state.view.activeAnswerId === "cmpSub" && keypadText.includes("1") && keypadText.includes("⌫"),
+    "number keypad selects the first open blank and renders digit/backspace controls");
+  enterKeypadDigit("1");
+  enterKeypadDigit("2");
+  ok(state.view.answers.cmpSub === "12", "number keypad writes digits into the active blank");
+  backspaceActiveAnswer();
+  ok(state.view.answers.cmpSub === "1", "number keypad backspace edits the active blank");
+  clearActiveAnswer();
+  ok(state.view.answers.cmpSub === "", "number keypad clear empties the active blank");
+  state.problem = savedProblemForKeypad;
+  state.view = savedViewForKeypad;
+  state.screen = savedScreenForKeypad;
+  state.session = savedSessionForKeypad;
 
   const generatedPicture = generateFactFamilyProblem("PICTURE_FAMILY", { scaffoldLevel: 1, familyOverride: "3+4=7" });
   ok(generatedPicture.fields.some(f => f.skill === "countFirstGroup" && f.representation === "putTogetherDots") &&
