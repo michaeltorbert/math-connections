@@ -104,6 +104,13 @@ button:disabled{cursor:default}
 .picture-group.labeled{border:1px dashed #cbd5e1;border-radius:8px;padding:10px 12px;position:relative;background:#fff}
 .picture-group.labeled::after{content:"Part";position:absolute;left:8px;top:-10px;background:#fff;color:var(--ink-soft);
   font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:1px 5px}
+.put-back-model{display:grid;gap:8px;justify-items:center;margin:0 auto 18px;padding:12px 14px;
+  border:1px solid #dbe4ef;border-radius:8px;background:#f8fafc;max-width:520px}
+.put-back-row{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.put-back-group{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;
+  border:1px dashed #cbd5e1;border-radius:8px;background:#fff;padding:8px 10px;min-height:42px}
+.put-back-op{font-size:24px;font-weight:900;color:var(--purple-d)}
+.put-back-caption{font-size:14px;font-weight:800;color:var(--ink-soft);text-align:center}
 .dot{width:22px;height:22px;border-radius:50%;display:inline-block;border:1px solid rgba(15,35,63,0.1)}
 .dot.a{background:var(--blue)}
 .dot.b{background:var(--green)}
@@ -247,7 +254,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.4.2";
+const APP_VERSION = "1.5.0";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -260,11 +267,16 @@ const KEYS = {
 };
 
 const MODES = ["factFamily"];                 // single, focused activity
-const LEGACY_TYPES = ["ADD", "SUB1", "SUB2", "CONNECT"];
+const DIAGNOSTIC_TYPES = ["SUB_RESULT", "SUB_MISSING_PART", "SUB_MISSING_WHOLE", "ADD_MISSING_PART", "COMPANION", "COMPARE_COMPANION"];
+const LEGACY_TYPES = ["SUB_RESULT", "SUB_MISSING_PART", "SUB_MISSING_WHOLE", "ADD_MISSING_PART", "ADD", "SUB1", "SUB2", "CONNECT"];
 const STRUCTURE_TYPES = ["COMPARE_COMPANION", "COMPARE_ADD", "PICTURE_FAMILY", "COMPANION", "ADD_TO_SUB", "NOT_FAMILY", "WHOLE_FIRST"];
 const PROBLEM_TYPES = [...STRUCTURE_TYPES, ...LEGACY_TYPES];
 const REVIEW_SLOT = "SPACED_REVIEW";
-const SESSION_TYPE_ORDER = ["COMPARE_COMPANION", "COMPARE_ADD", "COMPANION", "PICTURE_FAMILY", "NOT_FAMILY", "ADD_TO_SUB", "WHOLE_FIRST", "ADD", "SUB1", "SUB2", "CONNECT"];
+const SESSION_TYPE_ORDER = ["SUB_RESULT", "SUB_MISSING_PART", "SUB_MISSING_WHOLE", "ADD_MISSING_PART", "COMPANION", "COMPARE_COMPANION", "COMPARE_ADD", "PICTURE_FAMILY", "NOT_FAMILY", "ADD_TO_SUB", "WHOLE_FIRST", "ADD", "SUB1", "SUB2", "CONNECT"];
+const CALIBRATION_SESSIONS = 6;
+const CALIBRATION_SESSION_LENGTH = DIAGNOSTIC_TYPES.length;
+const CALIBRATION_QUESTION_TARGET = CALIBRATION_SESSIONS * CALIBRATION_SESSION_LENGTH;
+const ADAPTIVE_CYCLE_LENGTH = 12;
 
 // Default adaptive config. Everything the AI loop can change lives here.
 const DEFAULT_CONFIG = Object.freeze({
@@ -278,11 +290,15 @@ const DEFAULT_CONFIG = Object.freeze({
   avoidFamilies: [],
   emphasizeFacts: [],
   problemTypeMix: {
-    COMPARE_COMPANION: 0.5,
-    COMPARE_ADD: 0.17,
-    COMPANION: 0.17,
-    PICTURE_FAMILY: 0.1,
-    NOT_FAMILY: 0.06,
+    SUB_RESULT: 0.14,
+    SUB_MISSING_PART: 0.14,
+    SUB_MISSING_WHOLE: 0.14,
+    ADD_MISSING_PART: 0.14,
+    COMPANION: 0.16,
+    COMPARE_COMPANION: 0.16,
+    COMPARE_ADD: 0.06,
+    PICTURE_FAMILY: 0.06,
+    NOT_FAMILY: 0,
     ADD_TO_SUB: 0,
     WHOLE_FIRST: 0,
     ADD: 0,
@@ -322,6 +338,26 @@ const STRATEGIES = [
 ];
 
 const FOCUS_DEFS = Object.freeze({
+  subtractionResult: {
+    label: "solve subtraction facts",
+    plan: "Practice the result blank in take-away equations.",
+    multipliers: { SUB_RESULT: 5, SUB_MISSING_PART: 1.4, SUB_MISSING_WHOLE: 1.4, ADD_MISSING_PART: 1.1, COMPANION: 1.5, COMPARE_COMPANION: 1.3, COMPARE_ADD: .7, PICTURE_FAMILY: .6, ADD_TO_SUB: .8, NOT_FAMILY: .7, WHOLE_FIRST: .8, ADD: .5, SUB1: 1.5, SUB2: 1.5, CONNECT: .7 },
+  },
+  missingSubtrahend: {
+    label: "find the taken-away number",
+    plan: "Use the remaining part to find what was taken away.",
+    multipliers: { SUB_MISSING_PART: 5, SUB_RESULT: 1.5, SUB_MISSING_WHOLE: 1.3, ADD_MISSING_PART: 1.6, COMPANION: 1.5, COMPARE_COMPANION: 1.2, COMPARE_ADD: .8, PICTURE_FAMILY: .7, ADD_TO_SUB: 1, NOT_FAMILY: .7, WHOLE_FIRST: .8, ADD: .5, SUB1: 1.3, SUB2: 1.3, CONNECT: .7 },
+  },
+  missingWhole: {
+    label: "find the first number in subtraction",
+    plan: "Put the taken-away part and the remaining part back together.",
+    multipliers: { SUB_MISSING_WHOLE: 5, ADD_MISSING_PART: 2.6, SUB_RESULT: 1.4, SUB_MISSING_PART: 1.2, COMPANION: 1.3, COMPARE_COMPANION: 1.1, COMPARE_ADD: .9, PICTURE_FAMILY: .9, ADD_TO_SUB: .9, NOT_FAMILY: .8, WHOLE_FIRST: 1.6, ADD: .8, SUB1: 1, SUB2: 1, CONNECT: .8 },
+  },
+  missingAddend: {
+    label: "find the missing addend",
+    plan: "Use addition to put the two parts back together.",
+    multipliers: { ADD_MISSING_PART: 5, SUB_MISSING_WHOLE: 2.4, SUB_RESULT: 1.1, SUB_MISSING_PART: 1.3, COMPANION: 1, COMPARE_COMPANION: 1, COMPARE_ADD: 1.4, PICTURE_FAMILY: 1, ADD_TO_SUB: 1, NOT_FAMILY: .7, WHOLE_FIRST: .8, ADD: 1.8, SUB1: .8, SUB2: .8, CONNECT: 1 },
+  },
   companionSubtraction: {
     label: "write the related subtraction",
     plan: "Keep the first number. Switch the other two numbers.",
@@ -490,6 +526,12 @@ function isCompareType(type){ return type === "COMPARE_COMPANION" || type === "C
 function needsDistinctParts(type){ return isCompareType(type) || type === "PICTURE_FAMILY" || type === "COMPANION" || type === "ADD_TO_SUB" || type === "NOT_FAMILY"; }
 function relevantFact(type, fam){
   switch(type){
+    case "SUB_RESULT":
+    case "SUB_MISSING_PART":
+    case "SUB_MISSING_WHOLE":
+      return `${fam.whole}-${fam.b}`;
+    case "ADD_MISSING_PART":
+      return `${fam.a}+${fam.b}`;
     case "ADD":  return `${fam.a}+${fam.b}`;
     case "SUB1": return `${fam.whole}-${fam.a}`;   // answer = b
     case "SUB2": return `${fam.whole}-${fam.b}`;   // answer = a
@@ -595,15 +637,226 @@ function weightedType(mix){
 }
 
 function buildSessionTypePlan(cfg, focus){
-  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
-  if (usesDefaultProblemTypeMix(cfg.problemTypeMix)){
-    return buildConceptualSessionPlan(length, focus);
+  return buildSessionProblemPlan(cfg, focus).slots.map(slot => slot.type);
+}
+
+function buildSessionProblemPlan(cfg, focus){
+  const calibrationCount = answeredCalibrationCount(state.problemLog);
+  if (calibrationCount < CALIBRATION_QUESTION_TARGET){
+    const sessionIndex = Math.floor(calibrationCount / CALIBRATION_SESSION_LENGTH);
+    const slots = buildCalibrationSessionPlan(cfg, sessionIndex);
+    return {
+      phase: "calibration",
+      cycleIndex: null,
+      cyclePosition: calibrationCount,
+      slots,
+    };
   }
+
+  const adaptiveCount = answeredAdaptiveCount(state.problemLog);
+  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
+  const cycle = assignFamiliesToPlan(buildAdaptiveCycleSlots(state.problemLog, cfg), cfg, focus || derivePracticeFocus(), "adaptive");
+  const start = adaptiveCount % ADAPTIVE_CYCLE_LENGTH;
+  const slots = [];
+  for (let i = 0; i < length; i++){
+    const base = cycle[(start + i) % cycle.length];
+    slots.push(Object.assign({}, base, {
+      cycleIndex: Math.floor(adaptiveCount / ADAPTIVE_CYCLE_LENGTH),
+      cyclePosition: (start + i) % ADAPTIVE_CYCLE_LENGTH,
+    }));
+  }
+  return {
+    phase: "adaptive",
+    cycleIndex: Math.floor(adaptiveCount / ADAPTIVE_CYCLE_LENGTH),
+    cyclePosition: start,
+    slots,
+  };
+}
+
+function factFamilyRecords(records){
+  return (records || []).filter(r => r && r.mode === "factFamily");
+}
+
+function answeredCalibrationCount(records){
+  return factFamilyRecords(records).filter(r => r.schedulerPhase === "calibration").length;
+}
+
+function answeredAdaptiveCount(records){
+  return factFamilyRecords(records).filter(r => r.schedulerPhase === "adaptive").length;
+}
+
+function calibrationFamilyIds(cfg){
+  const max = clamp(cfg.numberRange.max, 5, 20);
+  const preferred = ["1+4=5", "2+3=5", "2+5=7", "3+4=7", "3+5=8", "4+5=9", "2+6=8", "4+6=10"];
+  const ids = [];
+  for (const id of preferred){
+    const fam = familyFromId(id);
+    if (fam && fam.whole <= max && !ids.includes(fam.id)) ids.push(fam.id);
+  }
+  const pool = familiesInRange(cfg)
+    .filter(fam => fam.a !== fam.b)
+    .sort((x, y) => (x.whole - y.whole) || (x.a - y.a) || (x.b - y.b));
+  for (const fam of pool){
+    if (!ids.includes(fam.id)) ids.push(fam.id);
+    if (ids.length >= CALIBRATION_SESSION_LENGTH) break;
+  }
+  if (ids.length < CALIBRATION_SESSION_LENGTH){
+    for (const fam of familiesInRange(cfg)){
+      if (!ids.includes(fam.id)) ids.push(fam.id);
+      if (ids.length >= CALIBRATION_SESSION_LENGTH) break;
+    }
+  }
+  return ids.slice(0, Math.max(1, Math.min(CALIBRATION_SESSION_LENGTH, ids.length)));
+}
+
+function buildCalibrationSessionPlan(cfg, sessionIndex){
+  const familyIds = calibrationFamilyIds(cfg);
+  const used = new Set();
+  const slots = new Array(DIAGNOSTIC_TYPES.length);
+  const assignmentOrder = DIAGNOSTIC_TYPES
+    .map((type, index) => ({ type, index }))
+    .sort((a, b) => Number(needsDistinctParts(b.type)) - Number(needsDistinctParts(a.type)) || a.index - b.index);
+  for (const item of assignmentOrder){
+    const type = item.type;
+    const typeIndex = item.index;
+    let picked = null;
+    for (let offset = 0; offset < Math.max(1, familyIds.length); offset++){
+      const candidate = familyIds[(typeIndex + sessionIndex + offset) % familyIds.length];
+      const fam = familyFromId(candidate);
+      if (!candidate || used.has(candidate)) continue;
+      if (fam && needsDistinctParts(type) && fam.a === fam.b) continue;
+      picked = candidate;
+      break;
+    }
+    if (!picked) picked = familyIds[(typeIndex + sessionIndex) % familyIds.length] || null;
+    if (picked) used.add(picked);
+    slots[typeIndex] = {
+      type,
+      familyId: picked,
+      schedulerPhase: "calibration",
+      schedulerRole: "calibrationProbe",
+      calibrationSessionIndex: Math.min(CALIBRATION_SESSIONS - 1, Math.max(0, sessionIndex)),
+      calibrationTypeIndex: typeIndex,
+    };
+  }
+  return slots;
+}
+
+function diagnosticGroupForProblemType(type){
+  if (DIAGNOSTIC_TYPES.includes(type)) return type;
+  if (type === "COMPARE_ADD" || type === "SUB1" || type === "SUB2") return "ADD_MISSING_PART";
+  if (type === "ADD_TO_SUB") return "COMPANION";
+  if (type === "PICTURE_FAMILY" || type === "CONNECT") return "COMPARE_COMPANION";
+  return null;
+}
+
+function buildDiagnosticTypeStats(records){
+  const stats = {};
+  for (const type of DIAGNOSTIC_TYPES){
+    stats[type] = { type, seen: 0, correct: 0, missed: 0, hinted: 0, modeled: 0, recentSeen: 0, recentCorrect: 0, score: 0 };
+  }
+  const all = factFamilyRecords(records);
+  const recentSet = new Set(all.slice(-50).map(r => r.id));
+  for (const r of all){
+    const type = diagnosticGroupForProblemType(r.problemType);
+    if (!type || !stats[type]) continue;
+    const stat = stats[type];
+    stat.seen++;
+    if (r.correctFirstTry) stat.correct++;
+    else stat.missed++;
+    if (r.hintUsed) stat.hinted++;
+    if (r.modeledAnswer) stat.modeled++;
+    if (recentSet.has(r.id)){
+      stat.recentSeen++;
+      if (r.correctFirstTry) stat.recentCorrect++;
+    }
+  }
+  for (const stat of Object.values(stats)){
+    const seen = Math.max(1, stat.seen);
+    const missRate = stat.missed / seen;
+    const hintRate = stat.hinted / seen;
+    const modelRate = stat.modeled / seen;
+    const lowSample = stat.seen < 6 ? (6 - stat.seen) * 0.04 : 0;
+    stat.accuracy = stat.seen ? stat.correct / stat.seen : null;
+    stat.recentAccuracy = stat.recentSeen ? stat.recentCorrect / stat.recentSeen : null;
+    stat.score = missRate + hintRate * 0.35 + modelRate * 0.6 + lowSample;
+  }
+  return stats;
+}
+
+function rankedDiagnosticTypes(records, cfg){
+  const stats = buildDiagnosticTypeStats(records);
+  return DIAGNOSTIC_TYPES
+    .map((type, order) => {
+      const configWeight = Math.max(0, Number(cfg && cfg.problemTypeMix && cfg.problemTypeMix[type]) || 0);
+      return Object.assign({ order, configWeight }, stats[type], {
+        score: stats[type].score + configWeight * 0.35,
+      });
+    })
+    .sort((a, b) => (b.score - a.score) || (a.order - b.order));
+}
+
+function prerequisiteTypeForDiagnostic(type){
+  switch(type){
+    case "SUB_RESULT": return "ADD_MISSING_PART";
+    case "SUB_MISSING_PART": return "SUB_RESULT";
+    case "SUB_MISSING_WHOLE": return "ADD_MISSING_PART";
+    case "ADD_MISSING_PART": return "SUB_RESULT";
+    case "COMPANION": return "SUB_RESULT";
+    case "COMPARE_COMPANION": return "COMPANION";
+    default: return "SUB_RESULT";
+  }
+}
+
+function buildAdaptiveCycleSlots(records, cfg){
+  const ranked = rankedDiagnosticTypes(records, cfg);
+  const weakest = ranked[0]?.type || "COMPARE_COMPANION";
+  const second = (ranked.find(item => item.type !== weakest) || ranked[1] || ranked[0] || {}).type || "COMPANION";
+  const prereq = prerequisiteTypeForDiagnostic(second);
+  const secondExtra = prereq && prereq !== second ? prereq : second;
+  const probes = DIAGNOSTIC_TYPES.map(type => ({ type, schedulerRole: "guaranteedProbe" }));
+  return [
+    probes[0],
+    { type: weakest, schedulerRole: "weakestExtra" },
+    probes[1],
+    { type: second, schedulerRole: "secondWeakestExtra" },
+    probes[2],
+    { type: REVIEW_SLOT, schedulerRole: "spacedReview" },
+    probes[3],
+    { type: weakest, schedulerRole: "weakestExtra" },
+    probes[4],
+    { type: secondExtra, schedulerRole: "secondWeakestPrerequisite" },
+    probes[5],
+    { type: weakest, schedulerRole: "weakestExtra" },
+  ];
+}
+
+function assignFamiliesToPlan(slots, cfg, focus, phase){
+  const used = new Set();
+  return slots.map(slot => {
+    const out = Object.assign({ schedulerPhase: phase }, slot);
+    if (slot.type === REVIEW_SLOT) return out;
+    if (!out.familyId) out.familyId = selectFamilyIdForSlot(slot.type, cfg, focus, used);
+    else used.add(out.familyId);
+    return out;
+  });
+}
+
+function selectFamilyIdForSlot(type, cfg, focus, used){
+  let pool = familiesInRange(cfg).filter(fam => !used.has(fam.id));
+  if (!pool.length) pool = familiesInRange(cfg);
+  const fam = selectWeightedFamily(pool, type, cfg, focus || null);
+  if (fam) used.add(fam.id);
+  return fam ? fam.id : null;
+}
+
+function buildWeightedTypePlan(cfg, focus){
+  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
   const mix = focus ? focusedTypeMix(cfg.problemTypeMix, focus) : cfg.problemTypeMix;
   const entries = PROBLEM_TYPES
     .map(t => ({ type: t, weight: Math.max(0, Number(mix[t]) || 0) }))
     .filter(e => e.weight > 0);
-  if (!entries.length) return buildConceptualSessionPlan(length, focus);
+  if (!entries.length) return DIAGNOSTIC_TYPES.slice(0, length);
   const total = entries.reduce((s, e) => s + e.weight, 0);
   let used = 0;
   for (const e of entries){
@@ -631,34 +884,12 @@ function usesDefaultProblemTypeMix(mix){
   return mixMatches(mix, DEFAULT_CONFIG.problemTypeMix) || mixMatches(mix, legacyPictureDefault);
 }
 
-function buildConceptualSessionPlan(length, focus){
-  const weakest = focus && focus.id ? focus.id : "companionSubtraction";
-  const current = typesForFocus(weakest);
-  const prereq = prerequisiteTypesForFocus(weakest);
-  const transfer = transferTypesForFocus(weakest);
-  const plan = [
-    "COMPARE_COMPANION",
-    "COMPARE_COMPANION",
-    "COMPARE_COMPANION",
-    "COMPARE_ADD",
-    "COMPANION",
-    REVIEW_SLOT,
-  ];
-  if (state.problemLog.length >= 6 && current[0]){
-    plan[0] = current[0];
-    plan[1] = current[1] || current[0];
-    plan[2] = prereq[0] || plan[2];
-    plan[3] = transfer[0] || plan[3];
-  }
-  const extension = [REVIEW_SLOT, current[0] || "COMPARE_COMPANION", prereq[0] || "COMPARE_COMPANION", transfer[0] || "NOT_FAMILY"];
-  for (let i = 0; plan.length < length; i++){
-    plan.push(extension[i % extension.length]);
-  }
-  return plan.slice(0, length);
-}
-
 function typesForFocus(focusId){
   switch(focusId){
+    case "subtractionResult": return ["SUB_RESULT", "SUB_RESULT"];
+    case "missingSubtrahend": return ["SUB_MISSING_PART", "SUB_RESULT"];
+    case "missingWhole": return ["SUB_MISSING_WHOLE", "ADD_MISSING_PART"];
+    case "missingAddend": return ["ADD_MISSING_PART", "SUB_MISSING_WHOLE"];
     case "companionSubtraction": return ["COMPARE_COMPANION", "COMPARE_COMPANION"];
     case "pictureToEquation": return ["PICTURE_FAMILY", "PICTURE_FAMILY"];
     case "wholeFirst": return ["COMPARE_COMPANION", "NOT_FAMILY"];
@@ -672,6 +903,10 @@ function typesForFocus(focusId){
 
 function prerequisiteTypesForFocus(focusId){
   switch(focusId){
+    case "subtractionResult": return ["ADD_MISSING_PART"];
+    case "missingSubtrahend": return ["SUB_RESULT"];
+    case "missingWhole": return ["ADD_MISSING_PART"];
+    case "missingAddend": return ["SUB_RESULT"];
     case "companionSubtraction": return ["COMPARE_COMPANION"];
     case "pictureToEquation": return ["PICTURE_FAMILY"];
     case "wholeFirst": return ["COMPARE_COMPANION"];
@@ -685,6 +920,10 @@ function prerequisiteTypesForFocus(focusId){
 
 function transferTypesForFocus(focusId){
   switch(focusId){
+    case "subtractionResult": return ["SUB_MISSING_PART"];
+    case "missingSubtrahend": return ["SUB_MISSING_WHOLE"];
+    case "missingWhole": return ["SUB_RESULT"];
+    case "missingAddend": return ["SUB_MISSING_WHOLE"];
     case "companionSubtraction": return ["COMPANION"];
     case "pictureToEquation": return ["PICTURE_FAMILY"];
     case "wholeFirst": return ["NOT_FAMILY"];
@@ -714,6 +953,7 @@ function answerEntries(record){
       id: a.id || "answer",
       fact: a.fact || record.fact,
       operation: a.operation || record.operation,
+      blankPosition: a.blankPosition || a.role || record.blankPosition || null,
       skill: a.skill || record.skill || null,
       representation: a.representation || record.representation || null,
       correctAnswer: a.correctAnswer,
@@ -727,6 +967,7 @@ function answerEntries(record){
     id: "answer",
     fact: record.fact,
     operation: record.operation,
+    blankPosition: record.blankPosition || null,
     skill: record.skill || null,
     representation: record.representation || null,
     correctAnswer: record.correctAnswer,
@@ -811,6 +1052,14 @@ function classifyDeficitSignals(record){
         subMisses.map(a => a.fact),
         sum && sum.correctFirstTry ? "addition was right but matching subtraction was missed" : "matching subtraction rows were missed");
     }
+  } else if (record.problemType === "SUB_RESULT"){
+    push("subtractionResult", missed.map(a => a.fact), "missed the result blank in a subtraction");
+  } else if (record.problemType === "SUB_MISSING_PART"){
+    push("missingSubtrahend", missed.map(a => a.fact), "missed the taken-away number in a subtraction");
+  } else if (record.problemType === "SUB_MISSING_WHOLE"){
+    push("missingWhole", missed.map(a => a.fact), "missed the first number in a subtraction");
+  } else if (record.problemType === "ADD_MISSING_PART"){
+    push("missingAddend", missed.map(a => a.fact), "missed the missing addend in an addition");
   } else if (record.problemType === "SUB1" || record.problemType === "SUB2"){
     if (subAnswer && !subAnswer.correctFirstTry) push("subtractionRecall", [subAnswer.fact], "missed the take-away fact");
     if (addAnswer && !addAnswer.correctFirstTry){
@@ -875,6 +1124,8 @@ function buildDeficitProfile(records){
     focus: {},
     factStats: {},
     familyStats: {},
+    problemTypeStats: {},
+    blankPositionStats: {},
     skillStats: {},
     representationStats: {},
   };
@@ -903,9 +1154,12 @@ function buildDeficitProfile(records){
   for (const r of recent){
     const famId = r.factFamilyId || familyIdForFact(r.fact);
     const fam = profile.familyStats[famId] || (profile.familyStats[famId] = { add: { seen:0, correct:0 }, sub: { seen:0, correct:0 } });
+    addRatioStat(profile.problemTypeStats, r.problemType, r.correctFirstTry);
+    if (r.blankPosition) addRatioStat(profile.blankPositionStats, r.blankPosition, r.correctFirstTry);
     for (const a of answerEntries(r)){
       if (a.skill) addRatioStat(profile.skillStats, a.skill, a.correctFirstTry);
       if (a.representation) addRatioStat(profile.representationStats, a.representation, a.correctFirstTry);
+      if (a.blankPosition) addRatioStat(profile.blankPositionStats, a.blankPosition, a.correctFirstTry);
       if (a.operation !== "addition" && a.operation !== "subtraction") continue;
       addRatioStat(profile.factStats, a.fact, a.correctFirstTry);
       const slot = a.operation === "subtraction" ? fam.sub : fam.add;
@@ -1390,6 +1644,10 @@ function structuralFamilyCorrect(p, results){
 }
 
 function focusForErrorCode(code){
+  if (code === "MISSING_SUBTRAHEND_ERROR") return "missingSubtrahend";
+  if (code === "MISSING_ADDEND_ERROR") return "missingAddend";
+  if (code === "WHOLE_TOO_SMALL") return "missingWhole";
+  if (code === "DIFFERENCE_TOO_LARGE" || code === "OFF_BY_ONE") return "subtractionResult";
   if (code === "FIRST_NUMBER_CHANGED" || code === "OTHER_NUMBERS_NOT_SWITCHED" || code === "TRUE_BUT_NOT_MATCHING") return "companionSubtraction";
   if (code === "ADDED_ALL_VISIBLE_DOTS") return "companionSubtraction";
   if (code === "MATCHING_ADDITION_ERROR") return "subToAddTransfer";
@@ -1649,7 +1907,51 @@ function generateFactFamilyProblem(typeOverride, options){
   let constructRows = null, numberTiles = null, choiceOptions = null, pictureStages = null;
   let compare = null, visualModel = null, activityLabel = null;
 
-  if (type === "COMPARE_COMPANION"){
+  if (type === "SUB_RESULT"){
+    operation = "subtraction";
+    prompt = "Solve the subtraction.";
+    fields = [
+      makeField("subResult", `${fam.whole} − ${fam.b} =`, fam.a, "", `${fam.whole}-${fam.b}`, "subtraction", {
+        role: "difference",
+        blankPosition: "difference",
+        skill: "subtractionResult",
+        representation: "equation",
+      }),
+    ];
+  } else if (type === "SUB_MISSING_PART"){
+    operation = "subtraction";
+    prompt = "Find the missing number in the subtraction.";
+    fields = [
+      makeField("subMissingPart", `${fam.whole} −`, fam.b, `= ${fam.a}`, `${fam.whole}-${fam.b}`, "subtraction", {
+        role: "subtrahend",
+        blankPosition: "subtrahend",
+        skill: "missingSubtrahend",
+        representation: "equation",
+      }),
+    ];
+  } else if (type === "SUB_MISSING_WHOLE"){
+    operation = "subtraction";
+    prompt = "Find the first number in the subtraction.";
+    fields = [
+      makeField("subMissingWhole", "", fam.whole, `− ${fam.b} = ${fam.a}`, `${fam.whole}-${fam.b}`, "subtraction", {
+        role: "whole",
+        blankPosition: "whole",
+        skill: "missingWhole",
+        representation: "equation",
+      }),
+    ];
+  } else if (type === "ADD_MISSING_PART"){
+    operation = "addition";
+    prompt = "Find the missing number in the addition.";
+    fields = [
+      makeField("addMissingPart", "", fam.a, `+ ${fam.b} = ${fam.whole}`, `${fam.a}+${fam.b}`, "addition", {
+        role: "addend",
+        blankPosition: "addend",
+        skill: "missingAddend",
+        representation: "equation",
+      }),
+    ];
+  } else if (type === "COMPARE_COMPANION"){
     operation = "structure";
     visual = true;
     visualModel = "comparisonDots";
@@ -1951,6 +2253,7 @@ function generateFactFamilyProblem(typeOverride, options){
     fact: primaryOpen.fact,
     factCanonical: canonical.replace(/\s/g, ""),
     operation,
+    blankPosition: primaryOpen.blankPosition || primaryOpen.role || null,
     knownPart: type === "ADD" ? null : (type === "SUB2" ? fam.b : fam.a),
     knownIsA: type !== "SUB2",
     story,
@@ -1973,6 +2276,12 @@ function generateFactFamilyProblem(typeOverride, options){
     correctAnswer: primaryOpen.expected,
     range: clamp(cfg.numberRange.max, 5, 20),
     configId: cfg.configId || null,
+    schedulerPhase: options.schedulerPhase || null,
+    schedulerRole: options.schedulerRole || null,
+    schedulerCycleIndex: options.schedulerCycleIndex == null ? null : options.schedulerCycleIndex,
+    schedulerCyclePosition: options.schedulerCyclePosition == null ? null : options.schedulerCyclePosition,
+    calibrationSessionIndex: options.calibrationSessionIndex == null ? null : options.calibrationSessionIndex,
+    calibrationTypeIndex: options.calibrationTypeIndex == null ? null : options.calibrationTypeIndex,
     focusId: focus.id,
     focusLabel: focus.label,
     focusReason: focus.reason,
@@ -1985,12 +2294,17 @@ function generateFactFamilyProblem(typeOverride, options){
    ========================================================================= */
 function startSession(){
   const focus = derivePracticeFocus();
+  const plan = buildSessionProblemPlan(state.config, focus);
   const anchorFamily = selectSessionAnchorFamily(focus);
   state.session = {
     id: uid(),
     startedAt: nowIso(),
-    length: state.config.sessionLength,
-    typePlan: buildSessionTypePlan(state.config, focus.score > 0 ? focus : null),
+    length: plan.slots.length,
+    typePlan: plan.slots.map(slot => slot.type),
+    problemPlan: plan.slots,
+    schedulerPhase: plan.phase,
+    schedulerCycleIndex: plan.cycleIndex,
+    schedulerCyclePosition: plan.cyclePosition,
     focusId: focus.id,
     anchorFamilyId: anchorFamily ? anchorFamily.id : null,
     index: 0,                 // 0-based problem number within session
@@ -2084,15 +2398,24 @@ function deriveSkillScaffoldLevel(skillId){
 }
 
 function beginNextProblem(){
-  const plannedType = state.session && state.session.typePlan ? state.session.typePlan[state.session.index] : null;
+  const plannedSlot = state.session && state.session.problemPlan
+    ? state.session.problemPlan[state.session.index]
+    : { type: state.session && state.session.typePlan ? state.session.typePlan[state.session.index] : null };
+  const plannedType = plannedSlot && plannedSlot.type;
   const review = plannedType === REVIEW_SLOT ? resolveReviewPlan() : null;
   const type = review ? review.type : plannedType;
   const scaffoldLevel = scaffoldForPlannedProblem(type);
-  const familyOverride = review ? review.familyId : (state.session && state.session.anchorFamilyId);
+  const familyOverride = review ? review.familyId : (plannedSlot && plannedSlot.familyId) || (state.session && state.session.anchorFamilyId);
   state.problem = generateFactFamilyProblem(type, {
     scaffoldLevel,
     familyOverride,
     plannedType: plannedType || type,
+    schedulerPhase: plannedSlot && plannedSlot.schedulerPhase || (state.session && state.session.schedulerPhase) || null,
+    schedulerRole: plannedSlot && plannedSlot.schedulerRole || null,
+    schedulerCycleIndex: plannedSlot && plannedSlot.cycleIndex == null ? (state.session && state.session.schedulerCycleIndex) : plannedSlot && plannedSlot.cycleIndex,
+    schedulerCyclePosition: plannedSlot && plannedSlot.cyclePosition == null ? null : plannedSlot && plannedSlot.cyclePosition,
+    calibrationSessionIndex: plannedSlot && plannedSlot.calibrationSessionIndex,
+    calibrationTypeIndex: plannedSlot && plannedSlot.calibrationTypeIndex,
   });
   state.lastKey = state.problem.factFamilyId + "|" + state.problem.problemType;
   state.view = {
@@ -2128,6 +2451,8 @@ function spokenPrompt(p){
 
 function resultForField(field, raw){
   const numeric = Number(raw);
+  const submitted = raw === "" ? null : numeric;
+  const isCorrect = raw !== "" && Number.isInteger(numeric) && numeric === field.expected;
   return {
     id: field.id,
     fact: field.fact,
@@ -2136,11 +2461,22 @@ function resultForField(field, raw){
     skill: field.skill || null,
     representation: field.representation || null,
     expected: field.expected,
-    submitted: raw === "" ? null : numeric,
-    isCorrect: raw !== "" && Number.isInteger(numeric) && numeric === field.expected,
+    submitted,
+    isCorrect,
+    errorCode: answerErrorCode(field, submitted, isCorrect),
     tracksMastery: field.tracksMastery !== false,
     locked: Boolean(field.locked),
   };
+}
+
+function answerErrorCode(field, submitted, isCorrect){
+  if (isCorrect || submitted == null || !Number.isInteger(submitted)) return null;
+  if (Math.abs(submitted - field.expected) === 1) return "OFF_BY_ONE";
+  if (field.role === "whole" && submitted < field.expected) return "WHOLE_TOO_SMALL";
+  if (field.role === "difference" && submitted > field.expected) return "DIFFERENCE_TOO_LARGE";
+  if (field.role === "subtrahend") return "MISSING_SUBTRAHEND_ERROR";
+  if (field.role === "addend") return "MISSING_ADDEND_ERROR";
+  return "ARITHMETIC_ERROR";
 }
 
 function visibleAnswerFields(p){
@@ -2232,6 +2568,10 @@ function rememberFirstResults(results){
 }
 
 function fillConstructAnswer(p){
+  fillExpectedAnswers(p);
+}
+
+function fillExpectedAnswers(p){
   const answers = Object.assign({}, state.view.answers);
   for (const field of p.fields){
     answers[field.id] = String(field.expected);
@@ -2306,6 +2646,26 @@ function checkPictureFamily(){
       v.hintUsed = true;
     }
   }
+  render();
+}
+
+function handleMissingWholeMiss(p){
+  const v = state.view;
+  v.hintUsed = true;
+  if (v.attempts === 1){
+    if (!v.hintSequence.includes("putBackTogetherHint")) v.hintSequence.push("putBackTogetherHint");
+    v.feedback = { kind: "wrong", text: `${p.b} were taken away and ${p.a} remained. What addition puts them back together?` };
+  } else if (v.attempts === 2){
+    if (!v.hintSequence.includes("relatedAdditionHint")) v.hintSequence.push("relatedAdditionHint");
+    v.feedback = { kind: "wrong", text: `Put them back together: ${p.b} + ${p.a} = □.` };
+  } else {
+    if (!v.hintSequence.includes("visualModel")) v.hintSequence.push("visualModel");
+    v.modeledAnswer = true;
+    v.solved = true;
+    fillExpectedAnswers(p);
+    v.feedback = { kind: "wrong", text: `Let's model it: ${p.b} taken away joins ${p.a} left over, so the first number is ${p.whole}.` };
+  }
+  speak(v.feedback.text);
   render();
 }
 
@@ -2390,6 +2750,10 @@ function checkFactFamily(){
     v.feedback = { kind: "correct", text: correctText };
     speak(isStructuralType(p.problemType) ? v.feedback.text : `${v.feedback.text} These equations match.`);
   } else {
+    if (p.problemType === "SUB_MISSING_WHOLE"){
+      handleMissingWholeMiss(p);
+      return;
+    }
     const structuralErrors = structuralErrorsForProblem(p, results);
     if (isCompareType(p.problemType)){
       v.hintUsed = true;
@@ -2488,13 +2852,28 @@ function showHint(){
       })()
     : isPictureFamilyType(p.problemType)
     ? `Two parts make one whole. Addition joins ${p.a} and ${p.b} to make ${p.whole}. Subtraction starts with the whole, ${p.whole}, and finds one part.`
+    : p.problemType === "SUB_MISSING_WHOLE"
+    ? `${p.b} were taken away and ${p.a} remained. Put them back together: ${p.b} + ${p.a} = ${p.whole}.`
     : `${p.a}, ${p.b}, and ${p.whole} belong together. ${p.whole} is the whole, so subtraction starts with ${p.whole}. The parts, ${p.a} and ${p.b}, switch places.`;
+  if (p.problemType === "SUB_MISSING_WHOLE" && !state.view.hintSequence.includes("relatedAdditionHint")){
+    state.view.hintSequence.push("relatedAdditionHint");
+  }
   speak(msg);
   render();
 }
 
 function needsConnectionStep(p){
   return p && p.mode === "factFamily";
+}
+
+function supportOutcome(correctFirstTry, finalCorrect, view){
+  if (correctFirstTry) return "independent";
+  if (!finalCorrect) return "notCorrect";
+  const seq = view.hintSequence || [];
+  if (view.modeledAnswer || seq.includes("visualModel")) return "visualModel";
+  if (seq.includes("relatedAdditionHint")) return "relatedAdditionHint";
+  if (seq.includes("putBackTogetherHint") || view.hintUsed) return "verbalHint";
+  return "afterRetry";
 }
 
 function acknowledgeConnection(){
@@ -2511,6 +2890,11 @@ function recordProblemAndAdvance(){
   const firstAnswerIsNumber = typeof v.firstAnswer === "number" && Number.isFinite(v.firstAnswer);
   const correctAnswerIsNumber = !isStructuralType(p.problemType) && typeof p.correctAnswer === "number" && Number.isFinite(p.correctAnswer);
   const structuralErrorCodes = structuralErrorsForProblem(p, firstResults);
+  const finalResults = p.fields
+    .map(field => (v.fieldResults && v.fieldResults[field.id]) || null)
+    .filter(Boolean);
+  const finalCorrect = finalResults.length > 0 && finalResults.every(result => result.isCorrect);
+  const outcome = supportOutcome(correctFirstTry, finalCorrect, v);
   const record = {
     id: p.id,
     timestamp: nowIso(),
@@ -2525,7 +2909,14 @@ function recordProblemAndAdvance(){
     operation: p.operation,
     skill: p.skill || null,
     representation: p.representation || null,
+    blankPosition: p.blankPosition || null,
     plannedType: p.plannedType || p.problemType,
+    schedulerPhase: p.schedulerPhase || null,
+    schedulerRole: p.schedulerRole || null,
+    schedulerCycleIndex: p.schedulerCycleIndex == null ? null : p.schedulerCycleIndex,
+    schedulerCyclePosition: p.schedulerCyclePosition == null ? null : p.schedulerCyclePosition,
+    calibrationSessionIndex: p.calibrationSessionIndex == null ? null : p.calibrationSessionIndex,
+    calibrationTypeIndex: p.calibrationTypeIndex == null ? null : p.calibrationTypeIndex,
     problemText: p.problemText,
     correctAnswer: p.correctAnswer,
     childAnswer: v.firstAnswer,
@@ -2541,6 +2932,7 @@ function recordProblemAndAdvance(){
         fact: field.fact,
         operation: field.operation,
         role: field.role || null,
+        blankPosition: field.blankPosition || field.role || null,
         skill: field.skill || null,
         representation: field.representation || null,
         correctAnswer: loggedExpected,
@@ -2558,6 +2950,9 @@ function recordProblemAndAdvance(){
     scaffoldLevel: p.scaffoldLevel,
     attempts: v.attempts,
     correctFirstTry,
+    finalCorrect,
+    successAfterHint: !correctFirstTry && finalCorrect && Boolean(v.hintUsed),
+    supportOutcome: outcome,
     strategyTag: v.strategyTag || null,
     hintUsed: v.hintUsed,
     hintSequence: v.hintSequence || [],
@@ -2606,7 +3001,14 @@ function finishSession(){
   };
   state.sessionLog.push({
     id: s.id, mode: "factFamily", startedAt: s.startedAt, endedAt: s.endedAt,
-    length: s.length, typePlan: s.typePlan || [], focusId: s.focusId || null, summary: s.summary,
+    length: s.length,
+    typePlan: s.typePlan || [],
+    problemPlan: s.problemPlan || [],
+    schedulerPhase: s.schedulerPhase || null,
+    schedulerCycleIndex: s.schedulerCycleIndex == null ? null : s.schedulerCycleIndex,
+    schedulerCyclePosition: s.schedulerCyclePosition == null ? null : s.schedulerCyclePosition,
+    focusId: s.focusId || null,
+    summary: s.summary,
   });
   persistLogs();
   state.screen = "summary";
@@ -2769,6 +3171,26 @@ function renderPictureModel(p){
   model.appendChild(groupA);
   model.appendChild(groupB);
   return model;
+}
+
+function renderPutBackModel(p){
+  if (p.problemType !== "SUB_MISSING_WHOLE") return null;
+  const seq = state.view.hintSequence || [];
+  if (!seq.includes("relatedAdditionHint") && !seq.includes("visualModel")) return null;
+  const box = el("div", "put-back-model");
+  const row = el("div", "put-back-row");
+  const taken = el("div", "put-back-group");
+  for (let i = 0; i < p.b; i++) taken.appendChild(renderDot("b", p.story && p.story.colB));
+  const left = el("div", "put-back-group");
+  for (let i = 0; i < p.a; i++) left.appendChild(renderDot("a", p.story && p.story.colA));
+  row.appendChild(taken);
+  row.appendChild(el("span", "put-back-op", "+"));
+  row.appendChild(left);
+  row.appendChild(el("span", "put-back-op", "="));
+  row.appendChild(el("span", "known blankish whole-lock", String(p.whole)));
+  box.appendChild(row);
+  box.appendChild(el("div", "put-back-caption", `${p.b} taken away plus ${p.a} left over makes ${p.whole}.`));
+  return box;
 }
 
 function renderEquationField(field){
@@ -2955,6 +3377,8 @@ function renderPlay(){
   card.appendChild(story);
 
   card.appendChild(renderPictureModel(p));
+  const hintModel = renderPutBackModel(p);
+  if (hintModel) card.appendChild(hintModel);
   ensureActiveAnswerId(p);
   card.appendChild(renderEquationSet(p));
   const keypad = renderKeypad(p);
@@ -3007,6 +3431,8 @@ function renderPlay(){
         })()
       : isPictureFamilyType(p.problemType)
       ? `Two parts make one whole. ${p.a} + ${p.b} = ${p.whole}. Subtraction starts with the whole: ${p.whole} − one part = the other part.`
+      : p.problemType === "SUB_MISSING_WHOLE"
+      ? `${p.b} were taken away and ${p.a} remained. Put them back together: ${p.b} + ${p.a} = ${p.whole}.`
       : `${p.a} + ${p.b} = ${p.whole}, so ${p.whole} − ${p.a} = ${p.b} and ${p.whole} − ${p.b} = ${p.a}.`;
     card.appendChild(h);
   }
@@ -3171,6 +3597,15 @@ function stat(n, l){ const d = el("div","stat"); d.appendChild(el("div","n",Stri
 
 function renderFocusSummary(focus){
   const box = el("div", "reco");
+  const calibrationDone = answeredCalibrationCount(state.problemLog);
+  if (calibrationDone < CALIBRATION_QUESTION_TARGET){
+    box.appendChild(el("b", null, "Current phase"));
+    box.appendChild(el("div", null, `Calibration: ${calibrationDone}/${CALIBRATION_QUESTION_TARGET} diagnostic questions complete.`));
+    const plan = el("div", "muted", "The child still just taps Start; the app quietly rotates each blank position and picture connection before assigning extra practice.");
+    plan.style.cssText = "margin-top:6px;font-size:13px;font-weight:700";
+    box.appendChild(plan);
+    return box;
+  }
   box.appendChild(el("b", null, "Current focus"));
   box.appendChild(el("div", null, `${cap(focus.label)}. ${focus.reason}`));
   const plan = el("div", "muted", focus.plan);
@@ -3312,6 +3747,10 @@ function showErrors(box, errors){
    11. RECOMMENDATION (built-in adaptivity surfaced for the dad)
    ========================================================================= */
 function generateRecommendation(){
+  const calibrationDone = answeredCalibrationCount(state.problemLog);
+  if (calibrationDone < CALIBRATION_QUESTION_TARGET){
+    return `Calibration in progress: ${calibrationDone}/${CALIBRATION_QUESTION_TARGET} diagnostic questions complete. The app is quietly trying each blank position and representation before it shifts extra practice toward the weakest areas.`;
+  }
   const focus = derivePracticeFocus();
   const targets = [...(focus.targetFamilies || []), ...(focus.targetFacts || [])].slice(0, 4);
   const targetText = targets.length ? ` Targets: ${targets.join(", ")}.` : "";
@@ -3337,6 +3776,16 @@ function buildResultsDump(){
     activeConfig: state.config,
     factMastery: state.mastery,
     deficitProfile: buildDeficitProfile(ff),
+    diagnosticProfile: {
+      calibration: {
+        targetProblems: CALIBRATION_QUESTION_TARGET,
+        completedProblems: Math.min(CALIBRATION_QUESTION_TARGET, answeredCalibrationCount(ff)),
+        complete: answeredCalibrationCount(ff) >= CALIBRATION_QUESTION_TARGET,
+      },
+      lifetimeProblemTypes: buildDiagnosticTypeStats(ff),
+      recentProblemTypes: buildDiagnosticTypeStats(ff.slice(-50)),
+    },
+    recentProblems: state.problemLog.slice(-50),
     sessions: state.sessionLog,
     problems: state.problemLog,
   };
@@ -3360,56 +3809,71 @@ const ANALYSIS_INSTRUCTIONS =
 ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=3).
 The DATA below is JSON exported from his practice app.
 
-The app's local scheduler is sequenced, not a random pile of drills. A normal six-item session
-centers the hard transformation: given a subtraction a - b = c, write the companion
-subtraction a - c = b. It starts with comparison-dot pictures, then asks for a matching
-addition once, then checks symbolic subtraction-only transfer, then review.
+The app's local scheduler is sequenced, not a random pile of drills. It starts with six
+six-question calibration sessions. Each calibration session includes one each of:
+SUB_RESULT (7-4=?), SUB_MISSING_PART (7-?=3), SUB_MISSING_WHOLE (?-4=3),
+ADD_MISSING_PART (?+4=7), COMPANION (given 7-4=3, write 7-3=4), and
+COMPARE_COMPANION (picture-based comparison connection). After 36 calibrated questions,
+adaptive practice repeats 12-question cycles: six guaranteed probes, three weakest-type
+extras, two second-weakest/prerequisite extras, and one spaced-review item.
 
 Representations matter. PICTURE_FAMILY / putTogetherDots means "how many in all?" where all
 visible dots form the whole. COMPARE_COMPANION and COMPARE_ADD / comparisonDots mean "how many
 more?" where the first number in the subtraction stays fixed and the other two numbers switch.
 Do not interpret comparison-dot mistakes as ordinary addition-first picture-family mistakes.
 
-Each problem record has: problemType (COMPARE_COMPANION | COMPARE_ADD | PICTURE_FAMILY |
-COMPANION | ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT), plannedType
-(which may be SPACED_REVIEW before it resolved), factFamilyId (e.g. "3+5=8"), fact (e.g. "8-3"),
-operation, skill, representation, correctAnswer, childAnswer, errorValue (for arithmetic-answer
-problems), answers[] (one row per equation blank or choice, with its own
-skill/representation/errorCode), structuralErrorCodes[], arithmeticCorrect, familyCorrect,
-scaffoldLevel, attempts, correctFirstTry, hintUsed, hintSequence, modeledAnswer, morphViewed,
-connectionViewed,
+Each problem record has: problemType (SUB_RESULT | SUB_MISSING_PART | SUB_MISSING_WHOLE |
+ADD_MISSING_PART | COMPANION | COMPARE_COMPANION | COMPARE_ADD | PICTURE_FAMILY |
+ADD_TO_SUB | NOT_FAMILY | WHOLE_FIRST | ADD | SUB1 | SUB2 | CONNECT), plannedType
+(which may be SPACED_REVIEW before it resolved), schedulerPhase, schedulerRole,
+schedulerCyclePosition, calibrationSessionIndex, factFamilyId (e.g. "3+5=8"), fact
+(e.g. "8-3"), operation, blankPosition, skill, representation, correctAnswer, childAnswer,
+errorValue (for arithmetic-answer problems), answers[] (one row per equation blank or choice,
+with its own blankPosition/skill/representation/errorCode), structuralErrorCodes[],
+arithmeticCorrect, familyCorrect, scaffoldLevel, attempts, correctFirstTry, finalCorrect,
+successAfterHint, supportOutcome, hintUsed, hintSequence, modeledAnswer, morphViewed, connectionViewed,
 timeSpentMs, focusId/focusReason (why the app chose that practice), and deficitSignals[] (what
-kind of miss it saw). The export also includes deficitProfile with factStats, familyStats,
-skillStats, and representationStats.
+kind of miss it saw). The export also includes diagnosticProfile with lifetime problem-type
+stats, recent problem-type stats, and recentProblems (last 50 records), plus deficitProfile
+with factStats, familyStats, problemTypeStats, blankPositionStats, skillStats, and
+representationStats.
 
 Please find:
 1. Which specific FACTS and FACT FAMILIES are weak (low correctFirstTry, many attempts, repeated
    errorValue patterns such as off-by-one (+/-1) or reversals).
-2. What KIND of weakness is showing up: companion subtraction (a-b=c -> a-c=b), comparison
+2. What KIND of weakness is showing up: direct subtraction result, missing subtrahend,
+   missing whole, missing addend, companion subtraction (a-b=c -> a-c=b), comparison
    picture interpretation, matching addition from a subtraction, addition fact recall,
    subtraction fact recall, addition->subtraction transfer, subtraction->addition transfer,
    put-together picture->equation mapping, or whole-first structure.
-3. For COMPARE_COMPANION records, check whether he kept the first number, switched the other
+3. For the first 36 calibrated questions, compare the six problem types separately. Do not
+   average them into one subtraction score.
+4. For SUB_MISSING_WHOLE records, distinguish independent success, success after the verbal
+   put-back-together hint, success after the related-addition hint, and success only after
+   visual modeling.
+5. For COMPARE_COMPANION records, check whether he kept the first number, switched the other
    two numbers, avoided adding all visible dots, and improved as scaffolds faded.
-4. For COMPARE_ADD records, check whether he wrote b+c=a or c+b=a from the given subtraction.
-5. For PICTURE_FAMILY records, separate counting parts, finding the whole, writing the addition,
+6. For COMPARE_ADD records, check whether he wrote b+c=a or c+b=a from the given subtraction.
+7. For PICTURE_FAMILY records, separate counting parts, finding the whole, writing the addition,
    starting subtraction with the whole, and completing the subtraction.
-6. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
+8. Whether he is preserving the family WHOLE: especially PART_MINUS_PART or TRUE_BUT_OTHER_FAMILY
    where the equation may be arithmetically true but does not belong to the displayed family.
-7. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
+9. Whether he TRANSFERS the add<->subtract connection: within the same factFamilyId, compare
    answer-row accuracy on addition fields vs subtraction fields. Is subtraction lagging behind addition?
-8. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation, and problemType.
+10. Error patterns clustered by structuralErrorCodes, errorValue, answers[].operation,
+   blankPosition, supportOutcome, and problemType.
    Treat FIRST_NUMBER_CHANGED, OTHER_NUMBERS_NOT_SWITCHED, TRUE_BUT_NOT_MATCHING, and
    ADDED_ALL_VISIBLE_DOTS as core comparison/companion-subtraction evidence. Treat
    MATCHING_ADDITION_ERROR as subtraction-to-addition transfer evidence. Treat ARITHMETIC_ERROR
    as subtraction recall, and DUPLICATE_SUBTRACTION or PARTS_NOT_SWITCHED as add-to-subtract
    transfer/structure. Treat PICTURE_PART_COUNT_ERROR, PICTURE_WHOLE_COUNT_ERROR, and
    PICTURE_ADDITION_ARITHMETIC_ERROR as put-together picture-to-equation evidence.
-9. Skill-level evidence from answers[].skill and deficitProfile.skillStats: countFirstGroup,
+11. Skill-level evidence from answers[].skill and deficitProfile.skillStats: countFirstGroup,
    countSecondGroup, identifyWhole, pictureToAddition, pictureToSubtraction, wholeFirst,
-   additionToSubtraction, companionSubtraction, matchingAddition, familyDiscrimination,
-   additionRecall, subtractionRecall, and subtractionToAddition.
-10. A recommended next focus (2-4 families or facts), with brief reasoning.
+   additionToSubtraction, companionSubtraction, matchingAddition, missingWhole,
+   missingSubtrahend, missingAddend, subtractionResult, familyDiscrimination, additionRecall,
+   subtractionRecall, and subtractionToAddition.
+12. A recommended next focus (2-4 families or facts), with brief reasoning.
 
 Reply in TWO parts:
 PART 1 — a short, plain-English summary for the dad (a few sentences, no jargon).
@@ -3417,8 +3881,8 @@ PART 2 — a SINGLE fenced \`\`\`json code block that is a valid adaptiveConfig 
 directly (schema in CONFIG_SCHEMA.md). Only emphasize/avoid facts justified by the data. Keep
 numberRange (max 5-20) and sessionLength (3-12) age-appropriate. Example keys: numberRange,
 sessionLength, emphasizeFamilies, emphasizeFacts, avoidFamilies, problemTypeMix, hintBehavior, note.
-Prefer purposeful weights that preserve a coherent progression; do not recommend randomly mixed
-problem types unless the data clearly justifies that.
+Use problemTypeMix only to nudge adaptive extra slots; the app will still keep guaranteed probes
+for all six diagnostic types.
 
 DATA:
 `;
@@ -3504,16 +3968,43 @@ function runSelfTests(){
   const defaultPlan = buildSessionTypePlan(DEFAULT_CONFIG);
   const planCounts = Object.fromEntries(PROBLEM_TYPES.map(t => [t, defaultPlan.filter(x => x === t).length]));
   ok(defaultPlan.length === 6 &&
-    defaultPlan[0] === "COMPARE_COMPANION" &&
-    defaultPlan[1] === "COMPARE_COMPANION" &&
-    defaultPlan[2] === "COMPARE_COMPANION" &&
-    planCounts.COMPARE_ADD === 1 &&
+    DIAGNOSTIC_TYPES.every((type, index) => defaultPlan[index] === type) &&
+    planCounts.SUB_RESULT === 1 &&
+    planCounts.SUB_MISSING_PART === 1 &&
+    planCounts.SUB_MISSING_WHOLE === 1 &&
+    planCounts.ADD_MISSING_PART === 1 &&
     planCounts.COMPANION === 1 &&
-    defaultPlan[5] === REVIEW_SLOT,
-    "default session plan is ordered compare companion, compare addition, symbolic companion, review");
+    planCounts.COMPARE_COMPANION === 1,
+    "default session plan starts with one calibration probe for every diagnostic type");
   const longPlan = buildSessionTypePlan(Object.assign({}, DEFAULT_CONFIG, { sessionLength: 9 }));
-  ok(longPlan.length === 9 && longPlan.every(Boolean) && longPlan.filter(x => x === REVIEW_SLOT).length >= 2,
-    "extended default session plan remains explicit and ordered");
+  ok(longPlan.length === 6 && longPlan.every(Boolean),
+    "calibration sessions stay six questions even if an imported config changes session length");
+  const calSlots0 = buildCalibrationSessionPlan(DEFAULT_CONFIG, 0);
+  const calSlots1 = buildCalibrationSessionPlan(DEFAULT_CONFIG, 1);
+  ok(new Set(calSlots0.map(slot => slot.familyId)).size === calSlots0.length &&
+    calSlots0.every(slot => slot.schedulerPhase === "calibration" && slot.schedulerRole === "calibrationProbe") &&
+    calSlots1[0].familyId === calSlots0[1].familyId,
+    "calibration uses six different families per session and rotates them across types");
+  const savedProblemLogForPlan = state.problemLog;
+  state.problemLog = [];
+  for (let i = 0; i < CALIBRATION_QUESTION_TARGET; i++){
+    state.problemLog.push({
+      id: `cal-${i}`,
+      mode: "factFamily",
+      problemType: DIAGNOSTIC_TYPES[i % DIAGNOSTIC_TYPES.length],
+      schedulerPhase: "calibration",
+      correctFirstTry: true,
+      hintUsed: false,
+      modeledAnswer: false,
+      answers: [],
+    });
+  }
+  const adaptivePlan = buildSessionProblemPlan(DEFAULT_CONFIG, derivePracticeFocus()).slots;
+  ok(adaptivePlan.length === 6 &&
+    adaptivePlan.some(slot => slot.type === REVIEW_SLOT && slot.schedulerRole === "spacedReview") &&
+    adaptivePlan.every(slot => slot.schedulerPhase === "adaptive"),
+    "after 36 calibration questions the scheduler switches to adaptive mixed practice");
+  state.problemLog = savedProblemLogForPlan;
 
   // problem generation invariants (200 iters across structural + arithmetic types)
   const savedCfg = state.config, savedLast = state.lastKey;
@@ -3602,6 +4093,53 @@ function runSelfTests(){
 
   const defaultFocus = derivePracticeFocus([]);
   ok(defaultFocus.id === "companionSubtraction", "default focus starts with subtraction companion transfer");
+
+  const directSub = generateFactFamilyProblem("SUB_RESULT", { familyOverride: "3+4=7" });
+  const missingPart = generateFactFamilyProblem("SUB_MISSING_PART", { familyOverride: "3+4=7" });
+  const missingWhole = generateFactFamilyProblem("SUB_MISSING_WHOLE", { familyOverride: "3+4=7" });
+  const missingAddend = generateFactFamilyProblem("ADD_MISSING_PART", { familyOverride: "3+4=7" });
+  ok(directSub.fields[0].before === "7 − 4 =" && directSub.correctAnswer === 3 && directSub.blankPosition === "difference" &&
+    missingPart.fields[0].before === "7 −" && missingPart.fields[0].after === "= 3" && missingPart.correctAnswer === 4 &&
+    missingWhole.fields[0].after === "− 4 = 3" && missingWhole.correctAnswer === 7 && missingWhole.blankPosition === "whole" &&
+    missingAddend.fields[0].after === "+ 4 = 7" && missingAddend.correctAnswer === 3 && missingAddend.blankPosition === "addend",
+    "calibration diagnostic problems expose the four requested blank positions");
+
+  const savedProblemForWholeHint = state.problem;
+  const savedViewForWholeHint = state.view;
+  const savedScreenForWholeHint = state.screen;
+  const savedQuerySelectorForWholeHint = document.querySelector;
+  const missingWholeFlow = generateFactFamilyProblem("SUB_MISSING_WHOLE", { familyOverride: "3+4=7" });
+  document.querySelector = () => ({ value: "6", focus(){} });
+  state.problem = missingWholeFlow;
+  state.screen = "home";
+  state.view = {
+    answers: {},
+    attempts: 0,
+    firstAnswer: null,
+    firstAnswers: null,
+    firstResultById: {},
+    firstFieldResults: null,
+    fieldResults: {},
+    activeAnswerId: null,
+    hintSequence: [],
+    hintUsed: false,
+    modeledAnswer: false,
+    solved: false,
+    feedback: null,
+    startedAt: Date.now(),
+  };
+  checkFactFamily();
+  checkFactFamily();
+  checkFactFamily();
+  ok(state.view.solved && state.view.modeledAnswer &&
+    state.view.hintSequence.join("|") === "putBackTogetherHint|relatedAdditionHint|visualModel" &&
+    state.view.firstFieldResults[0].submitted === 6 &&
+    state.view.fieldResults.subMissingWhole.isCorrect,
+    "SUB_MISSING_WHOLE hints progress from verbal to related addition to visual model while preserving first response");
+  document.querySelector = savedQuerySelectorForWholeHint;
+  state.problem = savedProblemForWholeHint;
+  state.view = savedViewForWholeHint;
+  state.screen = savedScreenForWholeHint;
 
   const generatedCompare = generateFactFamilyProblem("COMPARE_COMPANION", { scaffoldLevel: 1, familyOverride: "1+4=5" });
   ok(generatedCompare.problemType === "COMPARE_COMPANION" &&

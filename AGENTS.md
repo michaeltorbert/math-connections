@@ -188,19 +188,29 @@ When refreshing a preview:
   - distinguished true-but-wrong-family equations such as `7 - 2 = 5` for the
     family `2, 7, 9`
   - logged `PART_MINUS_PART` separately from ordinary arithmetic mistakes
-- Keep the default local scheduler ordered and representationally coherent:
-  three comparison companion-subtraction prompts, one comparison matching
-  addition prompt, one symbolic companion-subtraction prompt, then review. Do
-  not replace this with shuffled practice unless the user explicitly asks for
-  randomization.
-- Thread non-review items through one anchor fact family where possible so the
-  child sees the same comparison relationship across comparison dots, matching
-  addition when asked, symbolic companion subtraction, and review prompts.
+- Keep the default local scheduler automatic and representationally coherent.
+  The child should not see or choose a separate test mode. Preserve the quiet
+  36-question calibration phase: six sessions of six questions, one each of
+  `SUB_RESULT`, `SUB_MISSING_PART`, `SUB_MISSING_WHOLE`,
+  `ADD_MISSING_PART`, `COMPANION`, and `COMPARE_COMPANION`, with six
+  fact families rotated across types and no intentional duplicate family in a
+  calibration session.
+- After calibration, preserve adaptive 12-question cycles: six guaranteed
+  probes, three extra questions from the weakest type, two from the
+  second-weakest type or prerequisite, and one spaced-review item. Imported
+  `problemTypeMix` may nudge extra slots, but must not remove the guaranteed
+  probes.
 - Log skill and representation metadata at answer-row level. Current skill
   buckets include counting each group, identifying the whole,
   picture-to-addition, picture-to-subtraction, whole-first structure,
   addition-to-subtraction, companion subtraction, matching addition, family
-  discrimination, addition recall, subtraction recall, and subtraction-to-addition.
+  discrimination, missing whole, missing subtrahend, missing addend,
+  subtraction result, addition recall, subtraction recall, and
+  subtraction-to-addition.
+- Preserve first independent response data. Later success after a verbal hint,
+  related-addition hint, or visual model should be logged separately through
+  `successAfterHint`, `supportOutcome`, `hintSequence`, and final answer fields,
+  not by replacing the first answer.
 - Keep representations distinct: `comparisonDots` for compare/how-many-more
   pictures, `putTogetherDots` for how-many-in-all pictures, and `equation` for
   symbolic transfer.

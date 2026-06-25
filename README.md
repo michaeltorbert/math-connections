@@ -24,20 +24,35 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
 
 1. Pick a level on the home screen: **Within 5**, **Within 10**, or **Within 20**.
 2. Tap **Start**. Each session is a handful of short problems (default 6) — **no timer**.
+   There is no separate test mode; calibration and practice happen quietly inside normal play.
 3. For each problem the child sees either a comparison-dot picture or a short symbolic
    reinforcement prompt.
-4. The default six-item session centers subtraction-first transfer:
+4. The first 36 questions are an automatic calibration: six sessions of six questions. Each
+   calibration session includes one of each:
+   - `7 − 4 = □`
+   - `7 − □ = 3`
+   - `□ − 4 = 3`
+   - `□ + 4 = 7`
+   - given `7 − 4 = 3`, write the companion subtraction
+   - interpret a picture-based connection
+5. After calibration, practice uses repeating 12-question cycles spread across ordinary
+   sessions:
+   - six guaranteed probes, one from each calibrated type
+   - three extra questions from the weakest type
+   - two from the second-weakest type or its prerequisite
+   - one spaced-review question
+6. The connection-focused items include:
    - **COMPARE_COMPANION** — see comparison dots and `5 − 4 = 1`, then write `5 − 1 = 4`.
    - **COMPARE_ADD** — see comparison dots and `5 − 4 = 1`, then write `4 + 1 = 5`
      or `1 + 4 = 5`.
    - **COMPANION** — without the picture, write the related subtraction.
    - **SPACED_REVIEW** — revisit a recent weak skill, often picture-family or
      true-but-wrong-family review.
-5. Number blanks use an in-app keypad, so tablet play does not require switching the iPad
+7. Number blanks use an in-app keypad, so tablet play does not require switching the iPad
    keyboard into number mode for every answer.
-6. After each solved problem, the connection is shown automatically and must be acknowledged
+8. After each solved problem, the connection is shown automatically and must be acknowledged
    before moving on.
-7. The strategy question is only asked at the end of the session, so practice does not stop
+9. The strategy question is only asked at the end of the session, so practice does not stop
    after every item.
 
 A short, friendly voice reads each problem (toggle with **🔊 Voice** on the home screen).
@@ -100,11 +115,10 @@ The app now also classifies the **kind** of miss before choosing the next proble
 - whole-first structure errors
 - true-but-wrong-family equations such as `7 − 2 = 5` for the family `2, 7, 9`
 
-The local scheduler works without the AI loop. By default it uses an ordered sequence:
-comparison companion, comparison companion, comparison companion, comparison matching
-addition, symbolic companion subtraction, then review. The non-review items share one
-anchor fact family so the same structure moves across representations instead of appearing
-as unrelated drills.
+The local scheduler works without the AI loop. It starts with a controlled 36-question
+calibration across six diagnostic types and six rotated fact families. After that, every
+12-question cycle keeps all six types monitored while adding extra work for the weakest
+type, the second-weakest type or prerequisite, and spaced review.
 
 The app keeps **COMPARE** and **PUT TOGETHER** pictures separate. In compare problems, visible
 dots show "how many more?" and the first subtraction number stays fixed. In put-together
@@ -114,9 +128,11 @@ Problem type and family selection are biased toward that current focus. The dash
 the focus, why it was picked, and which facts/families are being targeted.
 
 The AI loop is for periodic retuning, not for choosing every next question. Each exported
-problem includes the first response, final response, scaffold level, hint sequence, modeled
-answer flag, required connection-view flag, structural code, skill, representation, and
-response time so ChatGPT or Claude can tune families/facts from evidence instead of guessing.
+problem includes the first response, final response, blank position, scheduler phase/role,
+support outcome, scaffold level, hint sequence, modeled answer flag, required connection-view
+flag, structural code, skill, representation, and response time. Exports also include
+lifetime diagnostic stats plus a recent-results window so improvement is not hidden by older
+mistakes.
 
 ## Privacy
 
