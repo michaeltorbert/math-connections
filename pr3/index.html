@@ -254,7 +254,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.5.2";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -273,15 +273,10 @@ const STRUCTURE_TYPES = ["COMPARE_COMPANION", "COMPARE_ADD", "PICTURE_FAMILY", "
 const PROBLEM_TYPES = [...STRUCTURE_TYPES, ...LEGACY_TYPES];
 const REVIEW_SLOT = "SPACED_REVIEW";
 const SESSION_TYPE_ORDER = ["SUB_RESULT", "SUB_MISSING_PART", "SUB_MISSING_WHOLE", "ADD_MISSING_PART", "COMPANION", "COMPARE_COMPANION", "COMPARE_ADD", "PICTURE_FAMILY", "NOT_FAMILY", "ADD_TO_SUB", "WHOLE_FIRST", "ADD", "SUB1", "SUB2", "CONNECT"];
-const CALIBRATION_SESSIONS = 3;
+const CALIBRATION_SESSIONS = 6;
 const CALIBRATION_SESSION_LENGTH = DIAGNOSTIC_TYPES.length;
 const CALIBRATION_QUESTION_TARGET = CALIBRATION_SESSIONS * CALIBRATION_SESSION_LENGTH;
-const ADAPTIVE_ROLE_WEIGHTS = Object.freeze({
-  weakest: 0.5,
-  prerequisite: 0.2,
-  transfer: 0.2,
-  review: 0.1,
-});
+const ADAPTIVE_CYCLE_LENGTH = 12;
 
 // Default adaptive config. Everything the AI loop can change lives here.
 const DEFAULT_CONFIG = Object.freeze({
@@ -658,17 +653,22 @@ function buildSessionProblemPlan(cfg, focus){
     };
   }
 
-  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
   const adaptiveCount = answeredAdaptiveCount(state.problemLog);
-  const slots = assignFamiliesToPlan(buildAdaptiveSessionSlots(state.problemLog, cfg, length), cfg, focus || derivePracticeFocus(), "adaptive")
-    .map((slot, index) => Object.assign({}, slot, {
-      cycleIndex: null,
-      cyclePosition: adaptiveCount + index,
+  const length = Math.max(1, Math.round(cfg.sessionLength || 6));
+  const cycle = assignFamiliesToPlan(buildAdaptiveCycleSlots(state.problemLog, cfg), cfg, focus || derivePracticeFocus(), "adaptive");
+  const start = adaptiveCount % ADAPTIVE_CYCLE_LENGTH;
+  const slots = [];
+  for (let i = 0; i < length; i++){
+    const base = cycle[(start + i) % cycle.length];
+    slots.push(Object.assign({}, base, {
+      cycleIndex: Math.floor(adaptiveCount / ADAPTIVE_CYCLE_LENGTH),
+      cyclePosition: (start + i) % ADAPTIVE_CYCLE_LENGTH,
     }));
+  }
   return {
     phase: "adaptive",
-    cycleIndex: null,
-    cyclePosition: adaptiveCount,
+    cycleIndex: Math.floor(adaptiveCount / ADAPTIVE_CYCLE_LENGTH),
+    cyclePosition: start,
     slots,
   };
 }
@@ -808,77 +808,27 @@ function prerequisiteTypeForDiagnostic(type){
   }
 }
 
-function buildAdaptiveSessionSlots(records, cfg, length){
+function buildAdaptiveCycleSlots(records, cfg){
   const ranked = rankedDiagnosticTypes(records, cfg);
   const weakest = ranked[0]?.type || "COMPARE_COMPANION";
   const second = (ranked.find(item => item.type !== weakest) || ranked[1] || ranked[0] || {}).type || "COMPANION";
-  const counts = adaptiveRoleCounts(length);
-  const transferTypes = transferRepresentationTypesForDiagnostic(weakest);
-  const slots = [];
-  for (let i = 0; i < counts.weakest; i++) slots.push({ type: weakest, schedulerRole: "weakestType50" });
-  for (let i = 0; i < counts.prerequisite; i++) slots.push({ type: prerequisiteTypeForDiagnostic(weakest), schedulerRole: "prerequisite20" });
-  for (let i = 0; i < counts.transfer; i++){
-    slots.push({ type: transferTypes[i % transferTypes.length], schedulerRole: "transfer20" });
-  }
-  for (let i = 0; i < counts.review; i++) slots.push({ type: REVIEW_SLOT, schedulerRole: "masteredReview10" });
-  if (!slots.length) slots.push({ type: weakest, schedulerRole: "weakestType50" });
-  return interleaveAdaptiveSlots(slots, weakest, second).slice(0, length);
-}
-
-function adaptiveRoleCounts(length){
-  const roles = Object.entries(ADAPTIVE_ROLE_WEIGHTS).map(([role, weight]) => {
-    const exact = Math.max(0, length * weight);
-    return { role, exact, count: Math.floor(exact), remainder: exact - Math.floor(exact) };
-  });
-  let used = roles.reduce((sum, r) => sum + r.count, 0);
-  roles.sort((a, b) => b.remainder - a.remainder);
-  for (let i = 0; used < length; i++, used++) roles[i % roles.length].count++;
-  const out = Object.fromEntries(roles.map(r => [r.role, r.count]));
-  if (length >= 6 && out.review === 0){
-    const donor = ["weakest", "transfer", "prerequisite"].find(role => out[role] > 1);
-    if (donor){ out[donor]--; out.review = 1; }
-  }
-  return Object.assign({ weakest: 0, prerequisite: 0, transfer: 0, review: 0 }, out);
-}
-
-function transferRepresentationTypesForDiagnostic(type){
-  switch(type){
-    case "SUB_MISSING_WHOLE": return ["COMPANION", "COMPARE_COMPANION", "PICTURE_FAMILY"];
-    case "SUB_MISSING_PART": return ["COMPANION", "SUB_MISSING_WHOLE", "COMPARE_COMPANION"];
-    case "ADD_MISSING_PART": return ["SUB_MISSING_WHOLE", "COMPARE_ADD", "PICTURE_FAMILY"];
-    case "SUB_RESULT": return ["SUB_MISSING_PART", "COMPANION", "COMPARE_COMPANION"];
-    case "COMPANION": return ["COMPARE_COMPANION", "SUB_MISSING_WHOLE", "PICTURE_FAMILY"];
-    case "COMPARE_COMPANION": return ["COMPANION", "SUB_MISSING_WHOLE", "PICTURE_FAMILY"];
-    default: return ["COMPANION"];
-  }
-}
-
-function interleaveAdaptiveSlots(slots, weakest, second){
-  const byRole = {
-    weakest: slots.filter(s => s.schedulerRole === "weakestType50"),
-    prerequisite: slots.filter(s => s.schedulerRole === "prerequisite20"),
-    transfer: slots.filter(s => s.schedulerRole === "transfer20"),
-    review: slots.filter(s => s.schedulerRole === "masteredReview10"),
-  };
-  const out = [];
-  const order = ["weakest", "prerequisite", "weakest", "transfer", "weakest", "review"];
-  while (out.length < slots.length){
-    let moved = false;
-    for (const role of order){
-      const next = byRole[role].shift();
-      if (!next) continue;
-      out.push(next);
-      moved = true;
-      if (out.length >= slots.length) break;
-    }
-    if (!moved) break;
-  }
-  for (const role of Object.keys(byRole)){
-    while (byRole[role].length) out.push(byRole[role].shift());
-  }
-  return out.map(slot => slot.type === weakest || slot.type === second
-    ? slot
-    : Object.assign({}, slot));
+  const prereq = prerequisiteTypeForDiagnostic(second);
+  const secondExtra = prereq && prereq !== second ? prereq : second;
+  const probes = DIAGNOSTIC_TYPES.map(type => ({ type, schedulerRole: "guaranteedProbe" }));
+  return [
+    probes[0],
+    { type: weakest, schedulerRole: "weakestExtra" },
+    probes[1],
+    { type: second, schedulerRole: "secondWeakestExtra" },
+    probes[2],
+    { type: REVIEW_SLOT, schedulerRole: "spacedReview" },
+    probes[3],
+    { type: weakest, schedulerRole: "weakestExtra" },
+    probes[4],
+    { type: secondExtra, schedulerRole: "secondWeakestPrerequisite" },
+    probes[5],
+    { type: weakest, schedulerRole: "weakestExtra" },
+  ];
 }
 
 function assignFamiliesToPlan(slots, cfg, focus, phase){
@@ -3914,13 +3864,14 @@ const ANALYSIS_INSTRUCTIONS =
 ADDITION/SUBTRACTION FACT FAMILIES (e.g. from 3+5=8 you also know 8-3=5 and 8-5=3).
 The DATA below is JSON exported from his practice app.
 
-The app's local scheduler is sequenced, not a random pile of drills. It starts with three
+The app's local scheduler is sequenced, not a random pile of drills. It starts with six
 six-question calibration sessions. Each calibration session includes one each of:
 SUB_RESULT (7-4=?), SUB_MISSING_PART (7-?=3), SUB_MISSING_WHOLE (?-4=3),
 ADD_MISSING_PART (?+4=7), COMPANION (given 7-4=3, write 7-3=4), and
-COMPARE_COMPANION (picture-based comparison connection). After 18 calibrated questions,
-adaptive practice uses a per-session split: 50% weakest problem type, 20% its prerequisite,
-20% transfer to another representation, and 10% previously mastered review.
+COMPARE_COMPANION (picture-based comparison connection). After 36 calibrated questions,
+adaptive practice repeats 12-question cycles across two six-question sessions: six guaranteed
+probes, three weakest-type extras, two second-weakest/prerequisite extras, and one
+spaced-review item.
 
 Representations matter. PICTURE_FAMILY / putTogetherDots means "how many in all?" where all
 visible dots form the whole. COMPARE_COMPANION and COMPARE_ADD / comparisonDots mean "how many
@@ -3952,7 +3903,7 @@ Please find:
    picture interpretation, matching addition from a subtraction, addition fact recall,
    subtraction fact recall, addition->subtraction transfer, subtraction->addition transfer,
    put-together picture->equation mapping, or whole-first structure.
-3. For the first 18 calibrated questions, compare the six problem types separately. Do not
+3. For the first 36 calibrated questions, compare the six problem types separately. Do not
    average them into one subtraction score.
 4. For SUB_MISSING_WHOLE records, distinguish independent success, success after the verbal
    put-back-together hint, success after the related-addition hint, and success only after
@@ -3990,8 +3941,8 @@ PART 2 — a SINGLE fenced \`\`\`json code block that is a valid adaptiveConfig 
 directly (schema in CONFIG_SCHEMA.md). Only emphasize/avoid facts justified by the data. Keep
 numberRange (max 5-20) and sessionLength (3-12) age-appropriate. Example keys: numberRange,
 sessionLength, emphasizeFamilies, emphasizeFacts, avoidFamilies, problemTypeMix, hintBehavior, note.
-Use problemTypeMix only to nudge weak-type ranking; the app will still apply the local
-50/20/20/10 adaptive split.
+Use problemTypeMix only to nudge weak-type ranking; the app will still keep guaranteed probes
+for all six diagnostic types in each 12-question adaptive cycle.
 
 DATA:
 `;
@@ -4110,12 +4061,16 @@ function runSelfTests(){
   }
   const adaptivePlan = buildSessionProblemPlan(DEFAULT_CONFIG, derivePracticeFocus()).slots;
   ok(adaptivePlan.length === 6 &&
-    adaptivePlan.filter(slot => slot.schedulerRole === "weakestType50").length === 3 &&
-    adaptivePlan.filter(slot => slot.schedulerRole === "prerequisite20").length === 1 &&
-    adaptivePlan.filter(slot => slot.schedulerRole === "transfer20").length === 1 &&
-    adaptivePlan.filter(slot => slot.schedulerRole === "masteredReview10").length === 1 &&
+    adaptivePlan.some(slot => slot.type === REVIEW_SLOT && slot.schedulerRole === "spacedReview") &&
     adaptivePlan.every(slot => slot.schedulerPhase === "adaptive"),
-    "after 18 calibration questions the scheduler switches to 50/20/20/10 adaptive practice");
+    "after 36 calibration questions the scheduler switches to adaptive mixed practice");
+  const adaptiveCycle = buildAdaptiveCycleSlots(state.problemLog, DEFAULT_CONFIG);
+  ok(adaptiveCycle.length === ADAPTIVE_CYCLE_LENGTH &&
+    DIAGNOSTIC_TYPES.every(type => adaptiveCycle.some(slot => slot.schedulerRole === "guaranteedProbe" && slot.type === type)) &&
+    adaptiveCycle.filter(slot => slot.schedulerRole === "weakestExtra").length === 3 &&
+    adaptiveCycle.filter(slot => slot.schedulerRole === "secondWeakestExtra" || slot.schedulerRole === "secondWeakestPrerequisite").length === 2 &&
+    adaptiveCycle.filter(slot => slot.schedulerRole === "spacedReview").length === 1,
+    "adaptive cycle has six probes, three weakest extras, two second/prerequisite extras, and one review");
   state.problemLog = savedProblemLogForPlan;
 
   // problem generation invariants (200 iters across structural + arithmetic types)

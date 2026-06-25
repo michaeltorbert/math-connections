@@ -190,16 +190,16 @@ When refreshing a preview:
   - logged `PART_MINUS_PART` separately from ordinary arithmetic mistakes
 - Keep the default local scheduler automatic and representationally coherent.
   The child should not see or choose a separate test mode. Preserve the quiet
-  18-question calibration phase: three sessions of six questions, one each of
+  36-question calibration phase: six sessions of six questions, one each of
   `SUB_RESULT`, `SUB_MISSING_PART`, `SUB_MISSING_WHOLE`,
   `ADD_MISSING_PART`, `COMPANION`, and `COMPARE_COMPANION`, with six
   fact families rotated across types and no intentional duplicate family in a
   calibration session.
-- After calibration, preserve the adaptive 50/20/20/10 split: 50% weakest
-  problem type, 20% that type's prerequisite, 20% transfer to another
-  representation, and 10% previously mastered review. Imported
-  `problemTypeMix` may nudge weak-type ranking, but must not expose manual
-  child-facing modes.
+- After calibration, preserve repeating 12-question adaptive cycles across two
+  six-question sessions: six guaranteed probes, three extra questions from the
+  weakest type, two from the second-weakest type or prerequisite, and one
+  spaced-review item. Imported `problemTypeMix` may nudge weak-type ranking,
+  but must not expose manual child-facing modes.
 - Log skill and representation metadata at answer-row level. Current skill
   buckets include counting each group, identifying the whole,
   picture-to-addition, picture-to-subtraction, whole-first structure,
