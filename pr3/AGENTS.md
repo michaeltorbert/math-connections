@@ -213,6 +213,9 @@ When refreshing a preview:
   numbers, third models the relationship and sends the child to a near-transfer
   item. Preserve first-response data in the log even when a later scaffold
   leads to the final answer.
+- Treat the connection reveal as required teaching, not optional enrichment.
+  After a solved problem, show the connection automatically and require a
+  simple acknowledgment before the Next/Finish control appears.
 - Render imported config errors and user-controlled text with `textContent` or
   DOM text nodes, not `innerHTML`.
 - Validate adaptive configs defensively: parse facts/families, confirm

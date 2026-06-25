@@ -239,7 +239,7 @@ textarea.config{width:100%;min-height:140px;border-radius:14px;border:2px solid 
 /* =========================================================================
    1. CONSTANTS
    ========================================================================= */
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 const SCHEMA_VERSION = 1;
 const CHILD_NAME = "James";
 
@@ -2103,7 +2103,7 @@ function beginNextProblem(){
     selectedChoice: null,
     hintUsed: false,
     morphViewed: false,
-    showMorph: false,
+    connectionViewed: false,
     solved: false,
     feedback: null,
     startedAt: Date.now(),
@@ -2413,11 +2413,13 @@ function showHint(){
   render();
 }
 
-function doMorph(){
-  state.view.showMorph = true;
+function needsConnectionStep(p){
+  return p && p.mode === "factFamily";
+}
+
+function acknowledgeConnection(){
+  state.view.connectionViewed = true;
   state.view.morphViewed = true;
-  const p = state.problem;
-  speak(`${p.a} and ${p.b} make ${p.whole}. So, ${p.whole} take away ${p.a} leaves ${p.b}. And ${p.whole} take away ${p.b} leaves ${p.a}.`);
   render();
 }
 
@@ -2481,6 +2483,7 @@ function recordProblemAndAdvance(){
     hintSequence: v.hintSequence || [],
     modeledAnswer: Boolean(v.modeledAnswer),
     morphViewed: v.morphViewed,
+    connectionViewed: Boolean(v.connectionViewed),
     timeSpentMs: Date.now() - v.startedAt,
     range: p.range,
     configId: p.configId,
@@ -2846,11 +2849,11 @@ function renderPlay(){
     card.appendChild(ban);
   }
 
-  // the connection reveal (morph) — sits right under the praise banner
+  // the connection reveal is required teaching, not an optional extra.
   if (v.solved && isStructuralType(p.problemType)){
     card.appendChild(renderSwitchExplanation(p));
   }
-  if (v.showMorph){
+  if (v.solved && !isStructuralType(p.problemType)){
     card.appendChild(renderConnection(p));
   }
 
@@ -2863,14 +2866,15 @@ function renderPlay(){
     check.onclick = debounce(checkFactFamily, 350);
     ctr.appendChild(hint); ctr.appendChild(check);
   } else {
-    if (!isStructuralType(p.problemType) && state.config.hintBehavior.alwaysOfferMorph && !v.showMorph){
-      const m = el("button", "btn purple", "✨ Show the connection");
-      m.onclick = doMorph;
-      ctr.appendChild(m);
+    if (needsConnectionStep(p) && !v.connectionViewed){
+      const see = el("button", "btn purple", "✓ I see the connection");
+      see.onclick = acknowledgeConnection;
+      ctr.appendChild(see);
+    } else {
+      const next = el("button", "btn green", state.session.index + 1 >= state.session.length ? "🎉 Finish" : "Next →");
+      next.onclick = () => shouldAskStrategy() ? openStrategy() : recordProblemAndAdvance();
+      ctr.appendChild(next);
     }
-    const next = el("button", "btn green", state.session.index + 1 >= state.session.length ? "🎉 Finish" : "Next →");
-    next.onclick = () => shouldAskStrategy() ? openStrategy() : recordProblemAndAdvance();
-    ctr.appendChild(next);
   }
   card.appendChild(ctr);
 
@@ -3260,6 +3264,7 @@ operation, skill, representation, correctAnswer, childAnswer, errorValue (for ar
 problems), answers[] (one row per equation blank or choice, with its own
 skill/representation/errorCode), structuralErrorCodes[], arithmeticCorrect, familyCorrect,
 scaffoldLevel, attempts, correctFirstTry, hintUsed, hintSequence, modeledAnswer, morphViewed,
+connectionViewed,
 timeSpentMs, focusId/focusReason (why the app chose that practice), and deficitSignals[] (what
 kind of miss it saw). The export also includes deficitProfile with factStats, familyStats,
 skillStats, and representationStats.
@@ -3355,6 +3360,11 @@ function confirmLeave(){
 function runSelfTests(){
   let pass = 0, fail = 0;
   const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.error("FAIL:", msg); } };
+  const treeText = (node) => {
+    if (!node) return "";
+    const own = `${node.textContent || ""} ${node.innerHTML || ""}`;
+    return own + " " + (node.children || []).map(treeText).join(" ");
+  };
 
   // canonical family id
   ok(canonFamilyId(5,3) === canonFamilyId(3,5), "canonFamilyId order-independent");
@@ -3637,9 +3647,11 @@ function runSelfTests(){
   const compareAnswers = { cmpSub: "4", cmpAnswer: "1" };
   document.querySelector = (selector) => {
     const m = String(selector).match(/data-answer-id="([^"]+)"/);
-    return { value: m ? (compareAnswers[m[1]] || "") : "" };
+    return { value: m ? (compareAnswers[m[1]] || "") : "", focus(){} };
   };
+  const savedSessionForCompare = state.session;
   state.problem = compareFlowProblem;
+  state.session = { index: 0, length: 2 };
   state.screen = "home";
   state.view = {
     answers: {},
@@ -3657,7 +3669,7 @@ function runSelfTests(){
     selectedChoice: null,
     hintUsed: false,
     morphViewed: false,
-    showMorph: false,
+    connectionViewed: false,
     solved: false,
     feedback: null,
     startedAt: Date.now(),
@@ -3671,10 +3683,18 @@ function runSelfTests(){
     state.view.firstFieldResults.some(r => r.id === "cmpSub" && r.submitted === 4 && !r.isCorrect) &&
     state.view.fieldResults.cmpSub.isCorrect && state.view.fieldResults.cmpAnswer.isCorrect,
     "COMPARE_COMPANION correction hints progress before modeled answer and preserve first response");
+  const requiredConnectionText = treeText(renderPlay());
+  ok(requiredConnectionText.includes("I see the connection") && !requiredConnectionText.includes("Next"),
+    "solved problems require acknowledging the connection before Next appears");
+  acknowledgeConnection();
+  const acknowledgedConnectionText = treeText(renderPlay());
+  ok(state.view.connectionViewed && state.view.morphViewed && acknowledgedConnectionText.includes("Next"),
+    "acknowledging the connection unlocks Next and logs the viewed connection");
   document.querySelector = savedQuerySelectorForCompare;
   state.problem = savedProblemForCompare;
   state.view = savedViewForCompare;
   state.screen = savedScreenForCompare;
+  state.session = savedSessionForCompare;
 
   const savedProblemForPictureStages = state.problem;
   const savedViewForPictureStages = state.view;
@@ -3703,7 +3723,7 @@ function runSelfTests(){
     hintSequence: [],
     hintUsed: false,
     morphViewed: false,
-    showMorph: false,
+    connectionViewed: false,
     solved: false,
     feedback: null,
     startedAt: Date.now(),

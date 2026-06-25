@@ -33,7 +33,9 @@ Everything saves to the browser's `localStorage`. Nothing is ever sent over the 
    - **COMPANION** — without the picture, write the related subtraction.
    - **SPACED_REVIEW** — revisit a recent weak skill, often picture-family or
      true-but-wrong-family review.
-5. The strategy question is only asked at the end of the session, so practice does not stop
+5. After each solved problem, the connection is shown automatically and must be acknowledged
+   before moving on.
+6. The strategy question is only asked at the end of the session, so practice does not stop
    after every item.
 
 A short, friendly voice reads each problem (toggle with **🔊 Voice** on the home screen).
@@ -111,8 +113,8 @@ the focus, why it was picked, and which facts/families are being targeted.
 
 The AI loop is for periodic retuning, not for choosing every next question. Each exported
 problem includes the first response, final response, scaffold level, hint sequence, modeled
-answer flag, structural code, skill, representation, and response time so ChatGPT or Claude
-can tune families/facts from evidence instead of guessing.
+answer flag, required connection-view flag, structural code, skill, representation, and
+response time so ChatGPT or Claude can tune families/facts from evidence instead of guessing.
 
 ## Privacy
 

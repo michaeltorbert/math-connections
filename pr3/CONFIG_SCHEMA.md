@@ -32,7 +32,7 @@ and shows a non-blocking message — it never crashes or hangs.
 | `emphasizeFacts` | string[] | fact strings | `[]` | Specific facts to drill (weight ×3). |
 | `problemTypeMix` | object | weights ≥ 0 | `{COMPARE_COMPANION:.5, COMPARE_ADD:.17, COMPANION:.17, PICTURE_FAMILY:.1, NOT_FAMILY:.06}` | Relative likelihood of concrete problem types. The default scheduler also adds a sixth review slot. **Auto-normalized** to sum 1, so you may pass plain weights like `{COMPARE_COMPANION:3, COMPARE_ADD:1, COMPANION:1, PICTURE_FAMILY:1}`. |
 | `hintBehavior.autoHintAfterWrong` | number | `0`–`5` | `1` | Wrong answers before a hint is auto-shown (`0` = never auto). |
-| `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Offer the "Show the connection" animation after a correct ADD. |
+| `hintBehavior.alwaysOfferMorph` | boolean | — | `true` | Legacy compatibility flag. The app now always shows a required connection step after each solved problem. |
 | `mastery.streakToMaster` | number | `1`–`8` | `3` | Correct-in-a-row needed to promote a fact one box. |
 | `mastery.demoteOnMiss` | boolean | — | `true` | Demote a fact one box on a miss. |
 | `ttsRate` | number | `0.6`–`1.4` | `0.92` | Voice speed. |
@@ -142,6 +142,7 @@ Each **problem record**:
   "hintSequence": ["firstNumberStays", "switchOtherNumbers"],
   "modeledAnswer": false,
   "morphViewed": false,
+  "connectionViewed": true,
   "answers": [
     {
       "id": "cmpWhole",
