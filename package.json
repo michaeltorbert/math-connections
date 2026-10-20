@@ -5,6 +5,7 @@
   "scripts": {
     "serve": "node scripts/serve-root.mjs",
     "test": "node tests/practice-core.test.js",
-    "test:logic": "node tests/practice-core.test.js"
+    "test:logic": "node tests/practice-core.test.js",
+    "check:home-screen-install": "node .github/scripts/check-home-screen-install.mjs src/vendor/home-screen-install esm"
   }
 }
